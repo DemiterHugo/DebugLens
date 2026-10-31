@@ -23,4 +23,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "DebugLens"
-include(":app")
+include(":app", ":domain", ":data")

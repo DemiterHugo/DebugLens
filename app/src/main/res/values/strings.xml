@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">DebugLens</string>
+    <string name="home_subtitle">Tu espacio de diagnóstico Android</string>
+    <string name="home_empty_title">Aún no hay diagnósticos</string>
+    <string name="home_empty_description">Las herramientas para explorar errores y registros estarán disponibles en próximas versiones.</string>
+    <string name="home_about">Acerca de DebugLens</string>
+    <string name="home_about_description">DebugLens convertirá errores y registros de Android en experiencias de diagnóstico interactivas. Estamos preparando sus primeras herramientas.</string>
+    <string name="action_close">Cerrar</string>
 </resources>
