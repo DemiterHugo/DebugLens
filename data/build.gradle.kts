@@ -20,4 +20,6 @@ android {
 
 dependencies {
     implementation(project(":domain"))
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
