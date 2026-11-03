@@ -62,6 +62,7 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onAnalyze = viewModel::analyze,
         onOpenSession = viewModel::openSession,
         onClearHistory = viewModel::clearHistory,
+        onRetryHistory = viewModel::retryHistory,
         onShowAbout = viewModel::showAbout,
         onDismissAbout = viewModel::dismissAbout,
         surfaceState = surfaceState,
@@ -77,6 +78,7 @@ internal fun HomeScreen(
     onAnalyze: () -> Unit,
     onOpenSession: (String) -> Unit,
     onClearHistory: () -> Unit,
+    onRetryHistory: () -> Unit,
     onShowAbout: () -> Unit,
     onDismissAbout: () -> Unit,
     modifier: Modifier = Modifier,
@@ -157,7 +159,7 @@ internal fun HomeScreen(
                         focusManager.clearFocus()
                         onAnalyze()
                     },
-                    enabled = !uiState.isAnalyzing,
+                    enabled = !uiState.isAnalyzing && !uiState.isClearingHistory,
                     modifier = Modifier.testTag("analyze_input"),
                 ) {
                     Text(stringResource(if (uiState.isAnalyzing) R.string.action_analyzing else R.string.action_analyze))
@@ -172,7 +174,11 @@ internal fun HomeScreen(
             uiState.operationError?.let { error ->
                 Text(
                     stringResource(
-                        if (error == HomeOperationError.ANALYSIS) R.string.analysis_error else R.string.history_error,
+                        when (error) {
+                            HomeOperationError.ANALYSIS -> R.string.analysis_error
+                            HomeOperationError.HISTORY_SAVE -> R.string.history_save_error
+                            HomeOperationError.HISTORY_CLEAR -> R.string.history_clear_error
+                        },
                     ),
                     color = MaterialTheme.colorScheme.error,
                 )
@@ -191,14 +197,23 @@ internal fun HomeScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (uiState.recentSessions.isEmpty()) {
-                Text(stringResource(R.string.history_empty))
+            if (uiState.isHistoryLoading) {
+                Text(stringResource(R.string.history_loading), modifier = Modifier.testTag("history_loading"))
+            } else if (uiState.historyLoadError) {
+                Text(stringResource(R.string.history_load_error), color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = onRetryHistory, modifier = Modifier.testTag("retry_history")) {
+                    Text(stringResource(R.string.action_retry_history))
+                }
+            } else if (uiState.recentSessions.isEmpty()) {
+                Text(stringResource(R.string.history_empty), modifier = Modifier.testTag("history_empty"))
             } else {
                 TextButton(
                     onClick = onClearHistory,
-                    enabled = !uiState.isAnalyzing,
+                    enabled = !uiState.isAnalyzing && !uiState.isClearingHistory,
                     modifier = Modifier.testTag("clear_history"),
-                ) { Text(stringResource(R.string.action_clear_history)) }
+                ) {
+                    Text(stringResource(if (uiState.isClearingHistory) R.string.action_clearing_history else R.string.action_clear_history))
+                }
                 uiState.recentSessions.forEach { session ->
                     Card(
                         onClick = {
@@ -251,6 +266,7 @@ private fun HomeScreenPreview() {
             onAnalyze = {},
             onOpenSession = {},
             onClearHistory = {},
+            onRetryHistory = {},
             onShowAbout = {},
             onDismissAbout = {},
         )

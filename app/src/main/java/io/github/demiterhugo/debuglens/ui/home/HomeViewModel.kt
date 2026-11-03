@@ -5,9 +5,11 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.demiterhugo.debuglens.di.AnalysisDispatcher
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticResult
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import javax.inject.Inject
+import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
@@ -28,18 +30,29 @@ class HomeViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var analysisJob: Job? = null
+    private var historyJob: Job? = null
     private var inputRevision = 0L
 
     init {
-        viewModelScope.launch {
+        observeHistory()
+    }
+
+    fun retryHistory() {
+        if (!_uiState.value.isHistoryLoading) observeHistory()
+    }
+
+    private fun observeHistory() {
+        historyJob?.cancel()
+        _uiState.update { it.copy(isHistoryLoading = true, historyLoadError = false) }
+        historyJob = viewModelScope.launch {
             try {
                 historyRepository.observeSessions().collect { sessions ->
-                    _uiState.update { it.copy(recentSessions = sessions) }
+                    _uiState.update { it.copy(recentSessions = sessions, isHistoryLoading = false) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                _uiState.update { it.copy(operationError = HomeOperationError.HISTORY) }
+                _uiState.update { it.copy(historyLoadError = true, isHistoryLoading = false) }
             }
         }
     }
@@ -58,7 +71,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun analyze() {
-        if (_uiState.value.isAnalyzing) return
+        if (_uiState.value.isAnalyzing || _uiState.value.isClearingHistory) return
         val input = _uiState.value.input
         val revision = inputRevision
         _uiState.update {
@@ -71,7 +84,15 @@ class HomeViewModel @Inject constructor(
                 when (result) {
                     is DiagnosticResult.InvalidInput -> _uiState.update { it.copy(inputError = result.reason) }
                     is DiagnosticResult.Success -> {
-                        val session = historyRepository.save(result.analysis)
+                        val session = try {
+                            historyRepository.save(result.analysis)
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            ensureActive()
+                            _uiState.update { it.copy(operationError = HomeOperationError.HISTORY_SAVE) }
+                            DiagnosticSession("unsaved-${UUID.randomUUID()}", result.analysis)
+                        }
                         ensureActive()
                         _uiState.update { it.copy(selectedSession = session) }
                     }
@@ -103,13 +124,22 @@ class HomeViewModel @Inject constructor(
     }
 
     fun clearHistory() {
+        if (_uiState.value.isClearingHistory || _uiState.value.isAnalyzing) return
+        _uiState.update {
+            it.copy(
+                isClearingHistory = true,
+                operationError = it.operationError.takeUnless { error -> error == HomeOperationError.HISTORY_CLEAR },
+            )
+        }
         viewModelScope.launch {
             try {
                 historyRepository.clear()
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                _uiState.update { it.copy(operationError = HomeOperationError.HISTORY) }
+                _uiState.update { it.copy(operationError = HomeOperationError.HISTORY_CLEAR) }
+            } finally {
+                _uiState.update { it.copy(isClearingHistory = false) }
             }
         }
     }

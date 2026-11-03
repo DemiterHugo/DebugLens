@@ -6,7 +6,7 @@
     <string name="home_input_label">Error o traza de la excepción</string>
     <string name="home_input_placeholder">Pega aquí el fragmento que quieras revisar</string>
     <string name="home_about">Acerca de DebugLens</string>
-    <string name="home_about_description">DebugLens analiza el texto que introduces y ofrece orientación sobre patrones habituales de errores de Android. El análisis ocurre en tu dispositivo y el historial es temporal.</string>
+    <string name="home_about_description">DebugLens analiza el texto que introduces y ofrece orientación sobre patrones habituales de errores de Android. Los últimos 20 análisis se guardan en este dispositivo y puedes borrarlos desde el historial.</string>
     <string name="action_close">Cerrar</string>
     <string name="action_analyze">Analizar</string>
     <string name="action_load_example">Ejemplo</string>
@@ -14,11 +14,16 @@
     <string name="action_analyzing">Analizando…</string>
     <string name="action_clear_input">Limpiar entrada</string>
     <string name="action_clear_history">Borrar historial</string>
+    <string name="action_clearing_history">Borrando historial…</string>
+    <string name="action_retry_history">Reintentar carga</string>
     <string name="input_character_count">Caracteres: %1$d / %2$d</string>
     <string name="input_error_empty">Introduce un error o una traza antes de analizar.</string>
     <string name="input_error_too_long">Límite de caracteres: %1$d. Reduce el fragmento y vuelve a intentarlo.</string>
     <string name="analysis_error">No se ha podido completar el análisis. Vuelve a intentarlo.</string>
-    <string name="history_error">No se ha podido actualizar el historial.</string>
+    <string name="history_save_error">El diagnóstico está disponible, pero no se ha podido guardar en el historial.</string>
+    <string name="history_clear_error">No se ha podido borrar el historial. Vuelve a intentarlo.</string>
+    <string name="history_load_error">No se ha podido cargar el historial guardado.</string>
+    <string name="history_loading">Cargando historial…</string>
     <string name="analysis_title">Resultado del análisis local</string>
     <string name="analysis_limitations">Orientación basada en el texto introducido. Comprueba la causa en tu código.</string>
     <string name="analysis_cause_count">Excepciones enlazadas: %1$d</string>
@@ -47,7 +52,7 @@
     <string name="check_message_and_trace">Revisar el mensaje y la cadena de causas de la traza.</string>
     <string name="check_reproduce">Reproducir el fallo con la versión de código correspondiente.</string>
     <string name="history_title">Análisis recientes</string>
-    <string name="history_retention">Historial temporal: conserva los últimos análisis mientras la aplicación sigue en memoria.</string>
+    <string name="history_retention">Los últimos 20 análisis se guardan en este dispositivo, incluso al cerrar la aplicación.</string>
     <string name="history_empty">Tus análisis aparecerán aquí.</string>
     <string name="category_null_reference">Referencia nula</string>
     <string name="category_invalid_state">Estado no válido</string>

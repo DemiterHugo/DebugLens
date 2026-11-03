@@ -9,6 +9,9 @@ data class HomeUiState(
     val isAnalyzing: Boolean = false,
     val selectedSession: DiagnosticSession? = null,
     val recentSessions: List<DiagnosticSession> = emptyList(),
+    val isHistoryLoading: Boolean = true,
+    val historyLoadError: Boolean = false,
+    val isClearingHistory: Boolean = false,
     val operationError: HomeOperationError? = null,
     val isAboutVisible: Boolean = false,
 ) {
@@ -17,5 +20,6 @@ data class HomeUiState(
 
 enum class HomeOperationError {
     ANALYSIS,
-    HISTORY,
+    HISTORY_SAVE,
+    HISTORY_CLEAR,
 }

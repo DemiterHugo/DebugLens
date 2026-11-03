@@ -31,8 +31,15 @@ class MainActivityTest {
 
     @Before
     fun clearPreviousHistory() {
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_loading").fetchSemanticsNodes().isEmpty()
+        }
+        composeRule.onNodeWithTag("retry_history").assertDoesNotExist()
         if (composeRule.onAllNodesWithTag("clear_history").fetchSemanticsNodes().isNotEmpty()) {
             composeRule.onNodeWithTag("clear_history").performScrollTo().performClick()
+        }
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_empty").fetchSemanticsNodes().isNotEmpty()
         }
     }
 
@@ -82,7 +89,7 @@ class MainActivityTest {
     }
 
     @Test
-    fun reopensAndClearsTheTemporaryHistory() {
+    fun reopensAndClearsTheSavedHistory() {
         val input = "java.lang.IllegalArgumentException: invalid page"
         analyze(input)
         composeRule.onNodeWithTag("clear_input").performScrollTo().performClick()
@@ -95,6 +102,9 @@ class MainActivityTest {
         composeRule.onNodeWithTag("analysis_result").performScrollTo().assertIsDisplayed()
 
         composeRule.onNodeWithTag("clear_history").performScrollTo().performClick()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_empty").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.history_empty))
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("history_entry").assertDoesNotExist()
@@ -185,7 +195,8 @@ class MainActivityTest {
 
     private fun waitForDiagnosticSurface() {
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag("a2ui_surface_ready").fetchSemanticsNodes().isNotEmpty()
+            composeRule.onAllNodesWithTag("a2ui_surface_ready").fetchSemanticsNodes().isNotEmpty() &&
+                composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().isNotEmpty()
         }
     }
 }

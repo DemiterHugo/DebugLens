@@ -10,10 +10,12 @@ import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -110,14 +112,16 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun failedSavingIsReportedAndTheNextAttemptCanSucceed() = runTest {
+    fun failedSavingKeepsTheDiagnosticAvailableAndTheNextAttemptCanSucceed() = runTest {
         repository.beforeSave = { error("Storage unavailable") }
         val model = createModel()
         model.updateInput("java.lang.NullPointerException")
         model.analyze()
         advanceUntilIdle()
 
-        assertEquals(HomeOperationError.ANALYSIS, model.uiState.value.operationError)
+        assertEquals(HomeOperationError.HISTORY_SAVE, model.uiState.value.operationError)
+        assertEquals(DiagnosticCategory.NULL_REFERENCE, model.uiState.value.analysis?.category)
+        assertTrue(model.uiState.value.selectedSession!!.id.startsWith("unsaved-"))
         assertFalse(model.uiState.value.isAnalyzing)
 
         repository.beforeSave = {}
@@ -163,7 +167,98 @@ class HomeViewModelTest {
         val model = createModel()
         advanceUntilIdle()
 
-        assertEquals(HomeOperationError.HISTORY, model.uiState.value.operationError)
+        assertTrue(model.uiState.value.historyLoadError)
+        assertFalse(model.uiState.value.isHistoryLoading)
+    }
+
+    @Test
+    fun showsLoadingUntilTheInitialHistorySnapshotArrives() = runTest {
+        val ready = CompletableDeferred<Unit>()
+        repository.beforeObservation = { ready.await() }
+        val model = createModel()
+        runCurrent()
+        assertTrue(model.uiState.value.isHistoryLoading)
+        ready.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.isHistoryLoading)
+        assertFalse(model.uiState.value.historyLoadError)
+    }
+
+    @Test
+    fun historyObservationCanBeRetriedAndItsErrorSurvivesDraftEdits() = runTest {
+        repository.failObservation = true
+        val model = createModel()
+        advanceUntilIdle()
+        model.updateInput("java.lang.NullPointerException")
+        assertTrue(model.uiState.value.historyLoadError)
+
+        repository.failObservation = false
+        model.retryHistory()
+        advanceUntilIdle()
+        model.analyze()
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.historyLoadError)
+        assertFalse(model.uiState.value.isHistoryLoading)
+        assertEquals(1, model.uiState.value.recentSessions.size)
+    }
+
+    @Test
+    fun clearingCannotOverlapAnotherClearOrANewAnalysis() = runTest {
+        val ready = CompletableDeferred<Unit>()
+        repository.beforeClear = { ready.await() }
+        val model = createModel()
+        advanceUntilIdle()
+        model.updateInput("java.lang.NullPointerException")
+        model.clearHistory()
+        runCurrent()
+        assertTrue(model.uiState.value.isClearingHistory)
+        model.clearHistory()
+        model.analyze()
+        runCurrent()
+        assertEquals(1, repository.clearCalls)
+        assertEquals(0, repository.saveCalls)
+
+        ready.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(model.uiState.value.isClearingHistory)
+        model.analyze()
+        advanceUntilIdle()
+        assertEquals(1, repository.saveCalls)
+    }
+
+    @Test
+    fun failedClearingCanBeRetriedWithoutDiscardingTheResult() = runTest {
+        val model = createModel()
+        model.updateInput("java.lang.NullPointerException")
+        model.analyze()
+        advanceUntilIdle()
+        val selected = model.uiState.value.selectedSession
+        repository.beforeClear = { error("Disk unavailable") }
+        model.clearHistory()
+        advanceUntilIdle()
+        assertEquals(HomeOperationError.HISTORY_CLEAR, model.uiState.value.operationError)
+        assertFalse(model.uiState.value.isClearingHistory)
+        assertEquals(selected, model.uiState.value.selectedSession)
+
+        repository.beforeClear = {}
+        model.clearHistory()
+        advanceUntilIdle()
+        assertNull(model.uiState.value.operationError)
+        assertTrue(model.uiState.value.recentSessions.isEmpty())
+        assertEquals(selected, model.uiState.value.selectedSession)
+    }
+
+    @Test
+    fun successiveUnsavedResultsHaveDifferentSurfaceIdentities() = runTest {
+        repository.beforeSave = { error("Disk unavailable") }
+        val model = createModel()
+        model.updateInput("java.lang.NullPointerException")
+        model.analyze()
+        advanceUntilIdle()
+        val firstId = model.uiState.value.selectedSession!!.id
+        model.analyze()
+        advanceUntilIdle()
+        assertNotEquals(firstId, model.uiState.value.selectedSession!!.id)
     }
 
     @Test
@@ -204,9 +299,16 @@ class HomeViewModelTest {
         var beforeSave: suspend () -> Unit = {}
         var saveCalls = 0
         var failObservation = false
+        var beforeObservation: suspend () -> Unit = {}
+        var beforeClear: suspend () -> Unit = {}
+        var clearCalls = 0
 
         override fun observeSessions(): Flow<List<DiagnosticSession>> =
-            if (failObservation) flow { error("History unavailable") } else sessions
+            flow {
+                beforeObservation()
+                if (failObservation) error("History unavailable")
+                emitAll(sessions)
+            }
 
         override suspend fun save(analysis: DiagnosticAnalysis): DiagnosticSession {
             saveCalls++
@@ -217,6 +319,8 @@ class HomeViewModelTest {
         }
 
         override suspend fun clear() {
+            clearCalls++
+            beforeClear()
             sessions.value = emptyList()
         }
     }

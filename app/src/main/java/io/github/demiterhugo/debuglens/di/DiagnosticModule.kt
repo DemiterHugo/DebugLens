@@ -1,10 +1,12 @@
 package io.github.demiterhugo.debuglens.di
 
+import android.content.Context
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
-import io.github.demiterhugo.debuglens.data.repository.InMemoryDiagnosticHistoryRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.demiterhugo.debuglens.data.repository.DiagnosticHistoryStorage
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import javax.inject.Qualifier
@@ -24,7 +26,11 @@ object DiagnosticModule {
 
     @Provides
     @Singleton
-    fun provideHistoryRepository(): DiagnosticHistoryRepository = InMemoryDiagnosticHistoryRepository()
+    fun provideHistoryStorage(@ApplicationContext context: Context): DiagnosticHistoryStorage =
+        DiagnosticHistoryStorage.open(context)
+
+    @Provides
+    fun provideHistoryRepository(storage: DiagnosticHistoryStorage): DiagnosticHistoryRepository = storage.repository
 
     @Provides
     @AnalysisDispatcher

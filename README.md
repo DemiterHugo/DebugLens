@@ -24,7 +24,7 @@ La dependencia de `app` sobre `data` permite ensamblar implementaciones en el
 punto de composición; los ViewModels dependerán de contratos de `domain`.
 
 `domain` implementa la validación y el análisis local de trazas, y declara el
-contrato del historial. `data` proporciona un historial en memoria, conectado
+contrato del historial. `data` proporciona un historial local con Room, conectado
 desde `app/di/DiagnosticModule`. Las instrucciones específicas de cada módulo
 están en [domain/README.md](domain/README.md) y [data/README.md](data/README.md).
 
@@ -37,7 +37,7 @@ están en [domain/README.md](domain/README.md) y [data/README.md](data/README.md
 3. Consultar una interfaz A2UI adaptada al patrón detectado, con la última
    excepción de la cadena principal, el mensaje y la ubicación disponibles.
    Marcar pasos de revisión y desplegar las causas y el fragmento original.
-4. Reabrir o borrar análisis recientes desde el historial temporal. Al abrir un
+4. Reabrir o borrar análisis recientes desde el historial guardado. Al abrir un
    resultado, la pantalla desplaza su cabecera al área visible.
 
 La entrada normaliza CRLF y CR a LF y elimina el espacio exterior. Se rechazan
@@ -56,10 +56,19 @@ manualmente; la aplicación no lee Logcat. No reconstruye trazas ofuscadas ni
 confirma por sí solo la causa de un ANR. La ubicación destacada prioriza marcos
 con línea fuera de los prefijos habituales del framework; es una heurística.
 
-El historial retiene las últimas 20 entradas, de más reciente a más antigua,
-durante la vida del proceso. El texto, los resultados y el historial se conservan
-al recrear la Activity, pero se pierden si termina el proceso. No hay persistencia
-en disco, acceso a la red ni análisis mediante IA.
+El historial guarda las últimas 20 entradas, de más reciente a más antigua, en
+una base de datos privada del dispositivo. Se conserva al cerrar el proceso y se
+elimina al borrar el historial, los datos de la aplicación o la propia aplicación.
+El borrador, el resultado abierto y las casillas de revisión se conservan al
+recrear la Activity, pero no al terminar el proceso. Al volver a abrir la app se
+pueden recuperar los análisis desde el historial. No hay acceso a la red ni IA.
+
+La pantalla distingue la carga del historial de un historial vacío y ofrece
+reintentar su lectura. Si falla el guardado, el diagnóstico sigue disponible
+durante esa sesión y se indica que no quedó guardado. El borrado conserva el
+resultado que ya estaba abierto. Las bases de datos, incluidos los archivos
+auxiliares de SQLite, se excluyen de las copias de seguridad y las transferencias
+entre dispositivos mediante las reglas de Android.
 
 Las orientaciones de la aplicación se apoyan en la documentación de Android sobre
 [trazas](https://developer.android.com/studio/debug/stacktraces),
@@ -118,6 +127,13 @@ La creación del repositorio concreto se limita a `app/di`. `domain` permanece
 libre de Android y Hilt; exporta Coroutines Core porque Flow forma parte del
 contrato público. `data` no necesita procesadores de inyección.
 
+`DiagnosticHistoryStorage` encapsula Room dentro de `data` y se proporciona como
+singleton de Hilt. Su API pública expone el repositorio y el cierre del recurso,
+manteniendo los tipos de Room y sus entidades dentro del módulo. El guardado de
+la sesión, sus causas y la retención de las 20 más recientes son una transacción.
+El borrado y la retención eliminan las causas asociadas mediante claves foráneas.
+La secuencia de inserción establece el orden sin depender del reloj del dispositivo.
+
 ## Herramientas
 
 Se mantienen AGP 9.5.0, Gradle Wrapper 9.6.0, Kotlin 2.2.10 y el BOM de Compose
@@ -134,6 +150,13 @@ existente mediante el catálogo propio, sin añadir el catálogo Material 3 opci
 Consultar las [notas oficiales de A2UI Compose](https://developer.android.com/jetpack/androidx/releases/a2ui-compose)
 antes de actualizar estas dependencias.
 
+La persistencia utiliza [Room 3.0.3](https://developer.android.com/jetpack/androidx/releases/room3)
+y el controlador `AndroidSQLiteDriver` de SQLite 2.7.1. El runtime, el compilador
+KSP y el controlador pertenecen a `data`; no se añaden artefactos de RxJava,
+Paging, KTX ni una copia nativa de SQLite. El plugin de Room exporta el esquema
+inicial en `data/schemas`, que se versiona para preparar futuras migraciones.
+No se configura un borrado automático de los datos ante un cambio de esquema.
+
 Los módulos Android usan el Kotlin integrado de AGP 9. `domain` aplica
 `org.jetbrains.kotlin.jvm`. El bytecode Java/Kotlin apunta a JVM 17 en los tres
 módulos. El daemon de Gradle conserva el criterio JDK 25 existente en
@@ -148,13 +171,13 @@ Configurar el SDK local en `local.properties`, que está excluido de Git.
 Desde Windows, con un JDK compatible disponible para el wrapper:
 
 ```powershell
-.\gradlew.bat :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest test lint --console=plain
-.\gradlew.bat :app:connectedDebugAndroidTest --console=plain
+.\gradlew.bat :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :data:assembleDebugAndroidTest test lint --max-workers=1 --console=plain
+.\gradlew.bat :data:connectedDebugAndroidTest :app:connectedDebugAndroidTest --max-workers=1 --console=plain
 ```
 
 La segunda orden necesita un dispositivo o emulador conectado. Las pruebas
 unitarias cubren normalización, límites, cadenas de causas, ramas suprimidas,
-formatos de entrada, clasificación, retención del historial y su coordinación
+formatos de entrada, clasificación, mapeo del historial y su coordinación
 desde el ViewModel, incluyendo cancelación y reintentos después de un fallo.
 Las pruebas de coroutines usan `kotlinx-coroutines-test` y un fake del contrato.
 También se comprueban los componentes generados, los límites de presentación,
@@ -168,8 +191,12 @@ A2UI comprueban las acciones, los enlaces de las casillas y su ciclo de vida.
 `DiagnosticA2uiRecoveryTest` verifica con el SDK real el rechazo de un componente
 no registrado y la reconstrucción correcta al reintentar.
 
+Las pruebas Android de `data` usan Room y el controlador del sistema para comprobar
+persistencia al cerrar y reabrir la base, borrado duradero, retención, eliminación
+de causas huérfanas, rollback, emisiones de Flow e inserciones concurrentes.
+
 ## Alcance de esta base
 
-Integración con IA, lectura automática de Logcat, red y persistencia quedan
+Integración con IA, lectura automática de Logcat y red quedan
 para las siguientes funcionalidades. La aplicación no solicita permisos de
-diagnóstico ni añade clientes de red o bases de datos.
+diagnóstico ni añade clientes de red. El historial se conserva localmente con Room.
