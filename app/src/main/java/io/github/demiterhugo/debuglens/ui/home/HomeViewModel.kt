@@ -4,17 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.demiterhugo.debuglens.di.AnalysisDispatcher
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticAnalysis
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticResult
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatCaptureRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
-import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
+import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import javax.inject.Inject
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +31,7 @@ class HomeViewModel @Inject constructor(
     private val analyzeDiagnostic: AnalyzeDiagnosticUseCase,
     private val historyRepository: DiagnosticHistoryRepository,
     private val logcatImporter: LogcatImportRepository,
+    private val logcatCapture: LogcatCaptureRepository,
     @param:AnalysisDispatcher private val analysisDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -73,32 +77,54 @@ class HomeViewModel @Inject constructor(
                 selectedSession = null,
                 operationError = null,
                 isAnalyzing = false,
-                isImportingLogcat = false,
-                logcatImportError = null,
+                logcatReadInProgress = null,
+                logcatReadError = null,
             )
         }
     }
 
-    fun importLogcat(documentId: String) {
+    fun importLogcat(documentId: String) = readLogcat(LogcatSource.DOCUMENT) {
+        logcatImporter.importDocument(documentId)
+    }
+
+    fun captureLogcat() = readLogcat(LogcatSource.DEVICE, logcatCapture::captureLatestIncident)
+
+    fun cancelLogcatCapture() {
+        if (_uiState.value.logcatReadInProgress != LogcatSource.DEVICE) return
+        cancelInputOperation()
+        _uiState.update { it.copy(logcatReadInProgress = null) }
+    }
+
+    private fun readLogcat(source: LogcatSource, read: suspend () -> LogcatIncidentResult) {
         if (_uiState.value.isInputBusy || _uiState.value.isClearingHistory) return
         val revision = inputRevision
-        _uiState.update { it.copy(isImportingLogcat = true, logcatImportError = null) }
+        _uiState.update { it.copy(logcatReadInProgress = source, logcatReadError = null) }
         inputJob = viewModelScope.launch {
             try {
-                val result = logcatImporter.importDocument(documentId)
+                val result = read()
                 ensureActive()
                 when (result) {
-                    is LogcatImportResult.Imported -> replaceInput(result.trace)
-                    is LogcatImportResult.Failure -> _uiState.update { it.copy(logcatImportError = result) }
+                    is LogcatIncidentResult.Found -> {
+                        replaceInput(result.trace)
+                        if (source == LogcatSource.DEVICE) {
+                            beginAnalysis()
+                            analyzeInput(result.trace, historyRepository::saveOrReuse)
+                        }
+                    }
+                    is LogcatIncidentResult.Failure -> _uiState.update {
+                        it.copy(logcatReadError = LogcatReadError(source, result))
+                    }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 ensureActive()
-                _uiState.update { it.copy(logcatImportError = LogcatImportResult.Failure.UNREADABLE) }
+                _uiState.update {
+                    it.copy(logcatReadError = LogcatReadError(source, LogcatIncidentResult.Failure.UNREADABLE))
+                }
             } finally {
                 if (inputRevision == revision) {
-                    _uiState.update { it.copy(isImportingLogcat = false) }
+                    _uiState.update { it.copy(logcatReadInProgress = null) }
                 }
             }
         }
@@ -107,44 +133,54 @@ class HomeViewModel @Inject constructor(
     fun analyze() {
         if (_uiState.value.isInputBusy || _uiState.value.isClearingHistory) return
         val input = _uiState.value.input
-        val revision = inputRevision
+        beginAnalysis()
+        inputJob = viewModelScope.launch { analyzeInput(input) }
+    }
+
+    private fun beginAnalysis() {
         _uiState.update {
             it.copy(
                 isAnalyzing = true,
                 inputError = null,
                 selectedSession = null,
                 operationError = null,
-                logcatImportError = null,
+                logcatReadError = null,
             )
         }
-        inputJob = viewModelScope.launch {
-            try {
-                val result = withContext(analysisDispatcher) { analyzeDiagnostic(input) }
-                ensureActive()
-                when (result) {
-                    is DiagnosticResult.InvalidInput -> _uiState.update { it.copy(inputError = result.reason) }
-                    is DiagnosticResult.Success -> {
-                        val session = try {
-                            historyRepository.save(result.analysis)
-                        } catch (cancelled: CancellationException) {
-                            throw cancelled
-                        } catch (_: Exception) {
-                            ensureActive()
-                            _uiState.update { it.copy(operationError = HomeOperationError.HISTORY_SAVE) }
-                            DiagnosticSession("unsaved-${UUID.randomUUID()}", result.analysis)
-                        }
-                        ensureActive()
-                        _uiState.update { it.copy(selectedSession = session) }
+    }
+
+    private suspend fun analyzeInput(
+        input: String,
+        saveSession: suspend (DiagnosticAnalysis) -> DiagnosticSession = historyRepository::save,
+    ) {
+        val revision = inputRevision
+        try {
+            val result = withContext(analysisDispatcher) { analyzeDiagnostic(input) }
+            currentCoroutineContext().ensureActive()
+            when (result) {
+                is DiagnosticResult.InvalidInput -> _uiState.update { it.copy(inputError = result.reason) }
+                is DiagnosticResult.Success -> {
+                    val session = try {
+                        saveSession(result.analysis)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        currentCoroutineContext().ensureActive()
+                        _uiState.update { it.copy(operationError = HomeOperationError.HISTORY_SAVE) }
+                        DiagnosticSession("unsaved-${UUID.randomUUID()}", result.analysis)
                     }
+                    currentCoroutineContext().ensureActive()
+                    _uiState.update { it.copy(selectedSession = session) }
                 }
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                _uiState.update { it.copy(operationError = HomeOperationError.ANALYSIS) }
-            } finally {
-                if (inputRevision == revision) {
-                    _uiState.update { it.copy(isAnalyzing = false) }
-                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            currentCoroutineContext().ensureActive()
+            _uiState.update { it.copy(operationError = HomeOperationError.ANALYSIS) }
+        } finally {
+            if (inputRevision == revision) {
+                _uiState.update { it.copy(isAnalyzing = false) }
             }
         }
     }
@@ -159,8 +195,8 @@ class HomeViewModel @Inject constructor(
                 inputError = null,
                 operationError = null,
                 isAnalyzing = false,
-                isImportingLogcat = false,
-                logcatImportError = null,
+                logcatReadInProgress = null,
+                logcatReadError = null,
             )
         }
     }

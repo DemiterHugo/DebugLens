@@ -138,6 +138,31 @@ class RoomDiagnosticHistoryRepositoryTest {
         assertEquals(listOf(second, first), snapshot())
     }
 
+    @Test
+    fun captureReusesTheNewestMatchingSessionAfterReopeningWithoutReorderingHistory() = runBlocking {
+        val name = diskName()
+        val existing = DiagnosticHistoryStorage.open(context, name).use { storage ->
+            val first = storage.repository.save(analysis())
+            val second = storage.repository.save(analysis())
+            val newest = storage.repository.save(analysis("unrelated"))
+            listOf(newest, second, first)
+        }
+        DiagnosticHistoryStorage.open(context, name).use { storage ->
+            assertEquals(existing[1], storage.repository.saveOrReuse(analysis()))
+            assertEquals(existing, withTimeout(10_000) { storage.repository.observeSessions().first() })
+        }
+    }
+
+    @Test
+    fun concurrentCapturesOfTheSameIncidentStoreOneSessionAndOneCauseChain() = runBlocking {
+        val captured = analysis()
+        val sessions = List(8) { async(Dispatchers.Default) { repository.saveOrReuse(captured) } }.awaitAll()
+
+        assertEquals(1, sessions.toSet().size)
+        assertEquals(listOf(sessions.first()), snapshot())
+        assertEquals(2L, causeCount())
+    }
+
     private suspend fun snapshot() = withTimeout(10_000) { repository.observeSessions().first() }
 
     private suspend fun causeCount(): Long = database.useReaderConnection { connection ->

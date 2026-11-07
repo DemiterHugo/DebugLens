@@ -4,7 +4,7 @@ import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInput
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticResult
 import io.github.demiterhugo.debuglens.domain.model.StackFrame
-import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
+import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Test
@@ -29,7 +29,7 @@ class ExtractLogcatIncidentUseCaseTest {
             11-07 10:11:13.200  3300  3310 E AndroidRuntime:     at sample.Worker.run(Worker.kt:42)
         """.trimIndent().replace("\n", "\r\n")
 
-        val incident = extract(dump) as LogcatImportResult.Imported
+        val incident = extract(dump) as LogcatIncidentResult.Found
         val analysis = (analyze(incident.trace) as DiagnosticResult.Success).analysis
         assertEquals(DiagnosticCategory.INVALID_STATE, analysis.category)
         assertEquals(listOf("java.lang.RuntimeException", "java.lang.IllegalStateException"), analysis.causes.map { it.type })
@@ -47,7 +47,7 @@ class ExtractLogcatIncidentUseCaseTest {
             11-07 10:11:13.200  1000  1001 E AndroidRuntime:     at com.android.server.Example.run(Example.java:42)
         """.trimIndent()
 
-        val incident = extract(dump) as LogcatImportResult.Imported
+        val incident = extract(dump) as LogcatIncidentResult.Found
         val analysis = (analyze(incident.trace) as DiagnosticResult.Success).analysis
         assertEquals(DiagnosticCategory.INVALID_STATE, analysis.category)
         assertEquals("system service failed", analysis.rootCause?.message)
@@ -64,7 +64,7 @@ class ExtractLogcatIncidentUseCaseTest {
             2026-11-07 10:11:13.200  1000  1010 E ActivityManager: Reason: Input dispatching timed out
         """.trimIndent()
 
-        val incident = extract(dump) as LogcatImportResult.Imported
+        val incident = extract(dump) as LogcatIncidentResult.Found
         val analysis = (analyze(incident.trace) as DiagnosticResult.Success).analysis
         assertEquals(DiagnosticCategory.UNRESPONSIVE, analysis.category)
         assertEquals("ANR in sample.app", analysis.anrEvidence)
@@ -77,7 +77,7 @@ class ExtractLogcatIncidentUseCaseTest {
             11-07 10:11:12.100  2200  2200 E SampleTag: ANR in sample.app
             java.lang.IllegalStateException: no Logcat metadata
         """.trimIndent()
-        assertEquals(LogcatImportResult.Failure.NO_INCIDENT, extract(dump))
+        assertEquals(LogcatIncidentResult.Failure.NO_INCIDENT, extract(dump))
     }
 
     @Test
@@ -86,9 +86,9 @@ class ExtractLogcatIncidentUseCaseTest {
         val longRecord = "11-07 10:11:12.100  2200  2200 E AndroidRuntime: " +
             "x".repeat(DiagnosticInput.MAX_LENGTH)
         val oversized = "$header\n$longRecord"
-        assertEquals(LogcatImportResult.Failure.INCIDENT_TOO_LONG, extract(oversized))
+        assertEquals(LogcatIncidentResult.Failure.INCIDENT_TOO_LONG, extract(oversized))
 
         val later = "11-07 10:11:13.200  1000  1010 E ActivityManager: ANR in sample.app"
-        assertEquals(LogcatImportResult.Imported(later), extract("$oversized\n$later"))
+        assertEquals(LogcatIncidentResult.Found(later), extract("$oversized\n$later"))
     }
 }

@@ -12,6 +12,10 @@ internal abstract class DiagnosticHistoryDao {
     @Query("SELECT * FROM diagnostic_sessions ORDER BY sequence DESC")
     abstract fun observeSessions(): Flow<List<StoredDiagnosticSession>>
 
+    @Transaction
+    @Query("SELECT * FROM diagnostic_sessions WHERE input = :input ORDER BY sequence DESC LIMIT 1")
+    protected abstract suspend fun findLatestByInput(input: String): StoredDiagnosticSession?
+
     @Insert
     protected abstract suspend fun insertSession(session: DiagnosticSessionEntity)
 
@@ -25,10 +29,19 @@ internal abstract class DiagnosticHistoryDao {
     protected abstract suspend fun prune(capacity: Int)
 
     @Transaction
-    open suspend fun save(session: DiagnosticSessionEntity, causes: List<DiagnosticCauseEntity>, capacity: Int) {
+    open suspend fun save(
+        session: DiagnosticSessionEntity,
+        causes: List<DiagnosticCauseEntity>,
+        capacity: Int,
+        reuseMatchingInput: Boolean = false,
+    ): StoredDiagnosticSession {
+        if (reuseMatchingInput) {
+            findLatestByInput(session.input)?.let { return it }
+        }
         insertSession(session)
         insertCauses(causes)
         prune(capacity)
+        return StoredDiagnosticSession(session, causes)
     }
 
     @Query("DELETE FROM diagnostic_sessions")

@@ -40,9 +40,12 @@ están en [domain/README.md](domain/README.md) y [data/README.md](data/README.md
 4. Reabrir o borrar análisis recientes desde el historial guardado. Al abrir un
    resultado, la pantalla desplaza su cabecera al área visible.
 
+**Leer Logcat** reúne la captura y el análisis en una sola acción para fallos
+de DebugLens registrados en el dispositivo.
+
 La entrada normaliza CRLF y CR a LF y elimina el espacio exterior. Se rechazan
-las entradas vacías y demasiado largas. Cambiar la entrada cancela el análisis
-o la importación en curso y retira el resultado anterior.
+las entradas vacías y demasiado largas. Cambiar la entrada cancela la lectura
+de Logcat o el análisis en curso y retira el resultado anterior.
 
 El clasificador reconoce referencias nulas, estados y argumentos inválidos,
 índices fuera de rango, conversiones de tipo, restricciones de seguridad,
@@ -73,6 +76,23 @@ Las orientaciones de la aplicación se apoyan en la documentación de Android so
 [trazas](https://developer.android.com/studio/debug/stacktraces),
 [ANR](https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs) y
 [volcados de memoria](https://developer.android.com/studio/profile/capture-heap-dump).
+
+## Leer Logcat desde DebugLens
+
+Pulsa **Leer Logcat** para buscar el último fallo Java de DebugLens que siga
+disponible en el búfer `crash`. La app captura hasta 500 entradas recientes y
+analiza el incidente en la misma acción. Muestra el diagnóstico en A2UI y lo
+guarda en el historial. Si no encuentra un fallo, conserva el borrador y el
+diagnóstico que estaban abiertos.
+
+Si el historial ya contiene la misma traza normalizada, abre la sesión más
+reciente que coincide. Durante la captura, sustituye los bytes inválidos por
+el carácter de reemplazo y sigue buscando el incidente.
+
+La captura es puntual, dura como máximo ocho segundos y se puede cancelar.
+Android limita la lectura directa de una app a los registros de su propio UID.
+Para analizar fallos de otras aplicaciones, del sistema o un ANR, usa un
+volcado. [Restricciones de acceso a Logcat en Android](https://source.android.com/docs/core/tests/debug/understanding-logging#device-logs).
 
 ## Importar un volcado de Logcat
 
@@ -237,8 +257,8 @@ La segunda orden necesita un dispositivo o emulador conectado. Las pruebas
 unitarias cubren normalización, límites, cadenas de causas, ramas suprimidas,
 formatos de entrada, clasificación, mapeo del historial y su coordinación
 desde el ViewModel, incluyendo cancelación y reintentos después de un fallo.
-También cubren la selección de incidentes de Logcat y la coordinación de su
-importación con el borrador y el guardado.
+También cubren la selección de incidentes de Logcat y la coordinación de la
+importación y la captura directa con el borrador, el análisis y el guardado.
 Las pruebas de coroutines usan `kotlinx-coroutines-test` y un fake del contrato.
 También se comprueban los componentes generados, los límites de presentación,
 las acciones permitidas, el reemplazo de superficies, los eventos obsoletos y la
@@ -254,9 +274,5 @@ no registrado y la reconstrucción correcta al reintentar.
 Las pruebas Android de `data` usan Room y el controlador del sistema para comprobar
 persistencia al cerrar y reabrir la base, borrado duradero, retención, eliminación
 de causas huérfanas, rollback, emisiones de Flow e inserciones concurrentes.
-
-## Alcance de esta base
-
-Lectura automática de Logcat y red quedan
-para las siguientes funcionalidades. La aplicación no solicita permisos de
-diagnóstico ni añade clientes de red. El historial se conserva localmente con Room.
+Las pruebas de captura comprueban la lectura del subproceso, el fallo del
+comando y su terminación al cancelar.

@@ -8,8 +8,9 @@ import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatCaptureRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
-import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
+import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
@@ -290,7 +291,7 @@ class HomeViewModelTest {
     @Test
     fun importedLogcatIsSavedOnlyAfterTheUserAnalyzesIt() = runTest {
         val trace = "11-07 10:11:12.100  2200  2200 E AndroidRuntime: java.lang.IllegalStateException: sample"
-        val model = createModel(LogcatImportRepository { LogcatImportResult.Imported(trace) })
+        val model = createModel(LogcatImportRepository { LogcatIncidentResult.Found(trace) })
 
         model.importLogcat("selected-document")
         advanceUntilIdle()
@@ -307,7 +308,7 @@ class HomeViewModelTest {
 
     @Test
     fun failedLogcatImportPreservesTheCurrentDraftAndAnalysis() = runTest {
-        val model = createModel(LogcatImportRepository { LogcatImportResult.Failure.NO_INCIDENT })
+        val model = createModel(LogcatImportRepository { LogcatIncidentResult.Failure.NO_INCIDENT })
         val draft = "java.lang.NullPointerException"
         model.updateInput(draft)
         model.analyze()
@@ -319,8 +320,11 @@ class HomeViewModelTest {
 
         assertEquals(draft, model.uiState.value.input)
         assertEquals(selected, model.uiState.value.selectedSession)
-        assertEquals(LogcatImportResult.Failure.NO_INCIDENT, model.uiState.value.logcatImportError)
-        assertFalse(model.uiState.value.isImportingLogcat)
+        assertEquals(
+            LogcatReadError(LogcatSource.DOCUMENT, LogcatIncidentResult.Failure.NO_INCIDENT),
+            model.uiState.value.logcatReadError,
+        )
+        assertNull(model.uiState.value.logcatReadInProgress)
     }
 
     @Test
@@ -329,27 +333,118 @@ class HomeViewModelTest {
             try {
                 awaitCancellation()
             } catch (_: kotlinx.coroutines.CancellationException) {
-                LogcatImportResult.Imported("late result")
+                LogcatIncidentResult.Found("late result")
             }
         })
         model.importLogcat("slow-document")
         runCurrent()
-        assertTrue(model.uiState.value.isImportingLogcat)
+        assertEquals(LogcatSource.DOCUMENT, model.uiState.value.logcatReadInProgress)
 
         model.updateInput("new draft")
         advanceUntilIdle()
         assertEquals("new draft", model.uiState.value.input)
-        assertNull(model.uiState.value.logcatImportError)
-        assertFalse(model.uiState.value.isImportingLogcat)
+        assertNull(model.uiState.value.logcatReadError)
+        assertNull(model.uiState.value.logcatReadInProgress)
+    }
+
+    @Test
+    fun capturingLogcatAnalyzesAndSavesTheIncidentOnce() = runTest {
+        val trace = "11-07 10:11:12.100  2200  2200 E AndroidRuntime: java.lang.IllegalStateException: captured"
+        var reads = 0
+        val model = createModel(capture = LogcatCaptureRepository {
+            reads++
+            LogcatIncidentResult.Found(trace)
+        })
+
+        model.captureLogcat()
+        model.captureLogcat()
+        assertEquals(LogcatSource.DEVICE, model.uiState.value.logcatReadInProgress)
+        advanceUntilIdle()
+
+        assertEquals(1, reads)
+        assertEquals(trace, model.uiState.value.input)
+        assertEquals(DiagnosticCategory.INVALID_STATE, model.uiState.value.analysis?.category)
+        assertEquals(model.uiState.value.recentSessions.single(), model.uiState.value.selectedSession)
+        assertEquals(1, repository.saveCalls)
+        assertFalse(model.uiState.value.isInputBusy)
+    }
+
+    @Test
+    fun recapturingTheSameLogcatIncidentReusesItsSession() = runTest {
+        val trace = "11-07 10:11:12.100  2200  2200 E AndroidRuntime: java.lang.IllegalStateException: captured"
+        var capturedTrace = trace
+        val model = createModel(capture = LogcatCaptureRepository { LogcatIncidentResult.Found(capturedTrace) })
+
+        model.captureLogcat()
+        advanceUntilIdle()
+        val firstSession = model.uiState.value.recentSessions.single()
+
+        model.captureLogcat()
+        advanceUntilIdle()
+        assertEquals(firstSession, model.uiState.value.selectedSession)
+        assertEquals(listOf(firstSession), model.uiState.value.recentSessions)
+        assertEquals(1, repository.saveCalls)
+
+        capturedTrace = trace.replace("12.100", "13.100")
+        model.captureLogcat()
+        advanceUntilIdle()
+        assertNotEquals(firstSession, model.uiState.value.selectedSession)
+        assertEquals(2, model.uiState.value.recentSessions.size)
+        assertEquals(2, repository.saveCalls)
+    }
+
+    @Test
+    fun emptyCapturePreservesTheCurrentDiagnosticAndHistory() = runTest {
+        val model = createModel(capture = LogcatCaptureRepository { LogcatIncidentResult.Failure.NO_INCIDENT })
+        val draft = "java.lang.NullPointerException: previous"
+        model.updateInput(draft)
+        model.analyze()
+        advanceUntilIdle()
+        val selected = model.uiState.value.selectedSession
+
+        model.captureLogcat()
+        advanceUntilIdle()
+
+        assertEquals(draft, model.uiState.value.input)
+        assertEquals(selected, model.uiState.value.selectedSession)
+        assertEquals(
+            LogcatReadError(LogcatSource.DEVICE, LogcatIncidentResult.Failure.NO_INCIDENT),
+            model.uiState.value.logcatReadError,
+        )
+        assertEquals(1, repository.saveCalls)
+        assertFalse(model.uiState.value.isInputBusy)
+    }
+
+    @Test
+    fun cancelingCaptureKeepsTheDraftAndDiscardsLateResults() = runTest {
+        val model = createModel(capture = LogcatCaptureRepository {
+            try {
+                awaitCancellation()
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                LogcatIncidentResult.Found("java.lang.IllegalStateException: late")
+            }
+        })
+        model.updateInput("current draft")
+        model.captureLogcat()
+        runCurrent()
+
+        model.cancelLogcatCapture()
+        advanceUntilIdle()
+
+        assertEquals("current draft", model.uiState.value.input)
+        assertNull(model.uiState.value.logcatReadError)
+        assertFalse(model.uiState.value.isInputBusy)
+        assertEquals(0, repository.saveCalls)
     }
 
     private fun createModel(
         importer: LogcatImportRepository = LogcatImportRepository { error("Unexpected import") },
+        capture: LogcatCaptureRepository = LogcatCaptureRepository { error("Unexpected capture") },
     ): HomeViewModel {
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                HomeViewModel(AnalyzeDiagnosticUseCase(), repository, importer, mainDispatcherRule.dispatcher) as T
+                HomeViewModel(AnalyzeDiagnosticUseCase(), repository, importer, capture, mainDispatcherRule.dispatcher) as T
         }
         return ViewModelProvider(store, factory)[HomeViewModel::class.java]
     }
@@ -377,6 +472,9 @@ class HomeViewModelTest {
             sessions.value = listOf(session) + sessions.value
             return session
         }
+
+        override suspend fun saveOrReuse(analysis: DiagnosticAnalysis): DiagnosticSession =
+            sessions.value.firstOrNull { it.analysis.input == analysis.input } ?: save(analysis)
 
         override suspend fun clear() {
             clearCalls++

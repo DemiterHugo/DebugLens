@@ -1,11 +1,11 @@
 package io.github.demiterhugo.debuglens.domain.usecase
 
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInput
-import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
+import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 
 /** Selects the last Java crash or ANR in an adb logcat threadtime dump. */
 class ExtractLogcatIncidentUseCase {
-    operator fun invoke(text: String): LogcatImportResult {
+    operator fun invoke(text: String): LogcatIncidentResult {
         var incident: Incident? = null
         for (line in text.lineSequence()) {
             val match = record.matchEntire(line) ?: continue
@@ -24,7 +24,7 @@ class ExtractLogcatIncidentUseCase {
                 }
             }
         }
-        return incident?.result() ?: LogcatImportResult.Failure.NO_INCIDENT
+        return incident?.result() ?: LogcatIncidentResult.Failure.NO_INCIDENT
     }
 
     private class Incident(val runtimeThread: Pair<String, String>?) {
@@ -42,10 +42,10 @@ class ExtractLogcatIncidentUseCase {
             trace.append(line)
         }
 
-        fun result(): LogcatImportResult = if (tooLong) {
-            LogcatImportResult.Failure.INCIDENT_TOO_LONG
+        fun result(): LogcatIncidentResult = if (tooLong) {
+            LogcatIncidentResult.Failure.INCIDENT_TOO_LONG
         } else {
-            LogcatImportResult.Imported(trace.toString())
+            LogcatIncidentResult.Found(trace.toString())
         }
     }
 

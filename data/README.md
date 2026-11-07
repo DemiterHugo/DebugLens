@@ -38,6 +38,14 @@ mediante `ContentResolver` en `Dispatchers.IO`. Limita la lectura a 2 MiB y
 delega la selección del incidente al caso de uso de `domain`. Al cancelar,
 notifica al proveedor y cierra el descriptor si el documento ya está abierto.
 
+`AndroidLogcatCaptureRepository` ejecuta una lectura puntual de `logcat` en
+`Dispatchers.IO`. Lee el búfer `crash` con los permisos del UID de la app y
+termina el subproceso al cancelar o vencer el plazo. Comparte con la
+importación el límite de 2 MiB y el extractor de incidentes de `domain`.
+La captura tolera secuencias UTF-8 inválidas mediante el carácter de reemplazo.
+Room busca una sesión con la misma traza y guarda la captura en una sola
+transacción si aún no existe.
+
 `LiteRtDiagnosticAiRepository` implementa los contratos de gestión de modelos
 y generación de sugerencias de `domain`. Usa un mismo bloqueo para la limpieza
 de copias interrumpidas, los cambios de modelo y la inferencia. Abre una

@@ -19,11 +19,15 @@ internal class RoomDiagnosticHistoryRepository(private val dao: DiagnosticHistor
         .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
 
-    override suspend fun save(analysis: DiagnosticAnalysis): DiagnosticSession {
-        val session = DiagnosticSession(UUID.randomUUID().toString(), analysis)
-        val stored = session.toStored()
-        dao.save(stored.session, stored.causes, CAPACITY)
-        return session
+    override suspend fun save(analysis: DiagnosticAnalysis): DiagnosticSession =
+        store(analysis, reuseMatchingInput = false)
+
+    override suspend fun saveOrReuse(analysis: DiagnosticAnalysis): DiagnosticSession =
+        store(analysis, reuseMatchingInput = true)
+
+    private suspend fun store(analysis: DiagnosticAnalysis, reuseMatchingInput: Boolean): DiagnosticSession {
+        val candidate = DiagnosticSession(UUID.randomUUID().toString(), analysis).toStored()
+        return dao.save(candidate.session, candidate.causes, CAPACITY, reuseMatchingInput).toDomain()
     }
 
     override suspend fun clear() = dao.clear()

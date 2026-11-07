@@ -11,5 +11,8 @@ interface DiagnosticHistoryRepository {
     /** Implementations must be safe to call from the main thread. */
     suspend fun save(analysis: DiagnosticAnalysis): DiagnosticSession
 
+    /** Atomically returns the newest session with the same normalized input or saves the analysis. */
+    suspend fun saveOrReuse(analysis: DiagnosticAnalysis): DiagnosticSession
+
     suspend fun clear()
 }

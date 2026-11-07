@@ -12,6 +12,7 @@ import android.system.Os
 import android.system.OsConstants
 import android.system.StructPollfd
 import androidx.test.platform.app.InstrumentationRegistry
+import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import java.io.FileNotFoundException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -34,6 +35,21 @@ class AndroidLogcatImportRepositoryTest {
     @After
     fun resetProvider() {
         LogcatTestProvider.openDocument = null
+    }
+
+    @Test
+    fun rejectsAMalformedDocumentEvenWhenItContainsAValidIncident() = runBlocking {
+        val (readEnd, writeEnd) = ParcelFileDescriptor.createPipe()
+        readEnd.use {
+            val trace = "11-07 10:11:12.100  2200  2200 E AndroidRuntime: FATAL EXCEPTION: main\n" +
+                "11-07 10:11:12.100  2200  2200 E AndroidRuntime: java.lang.IllegalStateException: captured\n"
+            ParcelFileDescriptor.AutoCloseOutputStream(writeEnd).use {
+                it.write(byteArrayOf(0xC0.toByte(), 0x80.toByte(), 10) + trace.encodeToByteArray())
+            }
+            LogcatTestProvider.openDocument = { AssetFileDescriptor(readEnd, 0, AssetFileDescriptor.UNKNOWN_LENGTH) }
+
+            assertEquals(LogcatIncidentResult.Failure.INVALID_ENCODING, repository.importDocument(document))
+        }
     }
 
     @Test

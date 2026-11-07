@@ -42,7 +42,7 @@ import io.github.demiterhugo.debuglens.R
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInput
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
-import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
+import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiControls
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiViewModel
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceState
@@ -77,6 +77,8 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onInputChange = viewModel::updateInput,
         onAnalyze = viewModel::analyze,
         onImportLogcat = { logcatPicker.launch(arrayOf("text/*", "application/octet-stream")) },
+        onCaptureLogcat = viewModel::captureLogcat,
+        onCancelLogcatCapture = viewModel::cancelLogcatCapture,
         onOpenSession = viewModel::openSession,
         onClearHistory = viewModel::clearHistory,
         onRetryHistory = viewModel::retryHistory,
@@ -103,6 +105,8 @@ internal fun HomeScreen(
     onInputChange: (String) -> Unit,
     onAnalyze: () -> Unit,
     onImportLogcat: () -> Unit,
+    onCaptureLogcat: () -> Unit,
+    onCancelLogcatCapture: () -> Unit,
     onOpenSession: (String) -> Unit,
     onClearHistory: () -> Unit,
     onRetryHistory: () -> Unit,
@@ -157,28 +161,56 @@ internal fun HomeScreen(
                     modifier = Modifier.testTag("load_example"),
                 ) { Text(stringResource(R.string.action_load_example)) }
             }
-            TextButton(
-                onClick = {
-                    keyboard?.hide()
-                    focusManager.clearFocus()
-                    onImportLogcat()
-                },
-                enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
-                modifier = Modifier.testTag("import_logcat"),
-            ) {
-                Text(stringResource(if (uiState.isImportingLogcat) R.string.action_importing_logcat else R.string.action_import_logcat))
-            }
-            uiState.logcatImportError?.let { error ->
-                Text(
-                    stringResource(
-                        when (error) {
-                            LogcatImportResult.Failure.UNREADABLE -> R.string.logcat_unreadable
-                            LogcatImportResult.Failure.FILE_TOO_LARGE -> R.string.logcat_file_too_large
-                            LogcatImportResult.Failure.INVALID_ENCODING -> R.string.logcat_invalid_encoding
-                            LogcatImportResult.Failure.NO_INCIDENT -> R.string.logcat_no_incident
-                            LogcatImportResult.Failure.INCIDENT_TOO_LONG -> R.string.logcat_incident_too_long
+            Column {
+                val canReadLogcat = !uiState.isInputBusy && !uiState.isClearingHistory
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            keyboard?.hide()
+                            focusManager.clearFocus()
+                            onCaptureLogcat()
                         },
-                    ),
+                        enabled = canReadLogcat,
+                        modifier = Modifier.testTag("capture_logcat"),
+                    ) {
+                        val label = if (uiState.logcatReadInProgress == LogcatSource.DEVICE) {
+                            R.string.action_capturing_logcat
+                        } else {
+                            R.string.action_capture_logcat
+                        }
+                        Text(stringResource(label))
+                    }
+                    TextButton(
+                        onClick = {
+                            keyboard?.hide()
+                            focusManager.clearFocus()
+                            onImportLogcat()
+                        },
+                        enabled = canReadLogcat,
+                        modifier = Modifier.testTag("import_logcat"),
+                    ) {
+                        val label = if (uiState.logcatReadInProgress == LogcatSource.DOCUMENT) {
+                            R.string.action_importing_logcat
+                        } else {
+                            R.string.action_import_logcat
+                        }
+                        Text(stringResource(label))
+                    }
+                }
+                Text(
+                    stringResource(R.string.logcat_capture_scope),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (uiState.logcatReadInProgress == LogcatSource.DEVICE) {
+                    TextButton(onClick = onCancelLogcatCapture) {
+                        Text(stringResource(R.string.action_cancel_logcat_capture))
+                    }
+                }
+            }
+            uiState.logcatReadError?.let { error ->
+                Text(
+                    stringResource(error.messageResource()),
                     color = MaterialTheme.colorScheme.error,
                 )
             }
@@ -310,6 +342,31 @@ internal fun HomeScreen(
     }
 }
 
+private fun LogcatReadError.messageResource(): Int = when (reason) {
+    LogcatIncidentResult.Failure.UNREADABLE -> if (source == LogcatSource.DEVICE) {
+        R.string.logcat_capture_unreadable
+    } else {
+        R.string.logcat_unreadable
+    }
+    LogcatIncidentResult.Failure.DUMP_TOO_LARGE -> if (source == LogcatSource.DEVICE) {
+        R.string.logcat_capture_too_large
+    } else {
+        R.string.logcat_file_too_large
+    }
+    LogcatIncidentResult.Failure.INVALID_ENCODING -> if (source == LogcatSource.DEVICE) {
+        R.string.logcat_capture_unreadable
+    } else {
+        R.string.logcat_invalid_encoding
+    }
+    LogcatIncidentResult.Failure.NO_INCIDENT -> if (source == LogcatSource.DEVICE) {
+        R.string.logcat_capture_no_incident
+    } else {
+        R.string.logcat_no_incident
+    }
+    LogcatIncidentResult.Failure.INCIDENT_TOO_LONG -> R.string.logcat_incident_too_long
+    LogcatIncidentResult.Failure.TIMED_OUT -> R.string.logcat_capture_timeout
+}
+
 @Preview(showBackground = true)
 @Composable
 private fun HomeScreenPreview() {
@@ -319,6 +376,8 @@ private fun HomeScreenPreview() {
             onInputChange = {},
             onAnalyze = {},
             onImportLogcat = {},
+            onCaptureLogcat = {},
+            onCancelLogcatCapture = {},
             onOpenSession = {},
             onClearHistory = {},
             onRetryHistory = {},
