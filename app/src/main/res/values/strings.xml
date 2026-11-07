@@ -99,6 +99,18 @@
     <string name="history_title">Análisis recientes</string>
     <string name="history_retention">Los últimos 20 análisis se guardan en este dispositivo, incluso al cerrar la aplicación.</string>
     <string name="history_empty">Tus análisis aparecerán aquí.</string>
+    <string name="history_search">Buscar en el historial</string>
+    <string name="history_search_hint">Mensaje, excepción o archivo</string>
+    <string name="history_searching">Buscando en el historial…</string>
+    <string name="history_all_categories">Todas las categorías</string>
+    <string name="history_selected_category">Categoría · %1$s</string>
+    <string name="history_reset_filters">Restablecer filtros</string>
+    <string name="history_no_matches">No hay diagnósticos que coincidan con los filtros.</string>
+    <plurals name="history_matches">
+        <item quantity="one">%1$d diagnóstico</item>
+        <item quantity="many">%1$d diagnósticos</item>
+        <item quantity="other">%1$d diagnósticos</item>
+    </plurals>
     <string name="category_null_reference">Referencia nula</string>
     <string name="category_invalid_state">Estado no válido</string>
     <string name="category_invalid_argument">Argumento no válido</string>

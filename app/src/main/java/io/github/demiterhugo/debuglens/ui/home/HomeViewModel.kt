@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.demiterhugo.debuglens.di.AnalysisDispatcher
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticAnalysis
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticResult
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
@@ -12,6 +13,8 @@ import io.github.demiterhugo.debuglens.domain.repository.LogcatCaptureRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
+import io.github.demiterhugo.debuglens.domain.usecase.DiagnosticHistoryFilter
+import io.github.demiterhugo.debuglens.domain.usecase.DiagnosticHistorySearch
 import javax.inject.Inject
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -22,6 +25,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -38,6 +42,8 @@ class HomeViewModel @Inject constructor(
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
     private var inputJob: Job? = null
     private var historyJob: Job? = null
+    private var historySearchJob: Job? = null
+    private var historySearch = DiagnosticHistorySearch(emptyList())
     private var inputRevision = 0L
 
     init {
@@ -53,14 +59,52 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(isHistoryLoading = true, historyLoadError = false) }
         historyJob = viewModelScope.launch {
             try {
-                historyRepository.observeSessions().collect { sessions ->
-                    _uiState.update { it.copy(recentSessions = sessions, isHistoryLoading = false) }
+                historyRepository.observeSessions().collectLatest { sessions ->
+                    historySearch = withContext(analysisDispatcher) { DiagnosticHistorySearch(sessions) }
+                    applyHistoryFilter(_uiState.value.historyFilter, sessions)
+                    _uiState.update { it.copy(isHistoryLoading = false) }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
                 _uiState.update { it.copy(historyLoadError = true, isHistoryLoading = false) }
             }
+        }
+    }
+
+    fun updateHistoryQuery(query: String) {
+        applyHistoryFilter(_uiState.value.historyFilter.copy(query = query))
+    }
+
+    fun selectHistoryCategory(category: DiagnosticCategory?) {
+        applyHistoryFilter(_uiState.value.historyFilter.copy(category = category))
+    }
+
+    fun resetHistoryFilter() {
+        applyHistoryFilter(DiagnosticHistoryFilter())
+    }
+
+    private fun applyHistoryFilter(
+        filter: DiagnosticHistoryFilter,
+        sessions: List<DiagnosticSession> = _uiState.value.recentSessions,
+    ) {
+        historySearchJob?.cancel()
+        val needsSearch = filter.isActive && sessions.isNotEmpty()
+        _uiState.update {
+            it.copy(
+                historyFilter = filter,
+                recentSessions = sessions,
+                matchingSessions = if (needsSearch) emptyList() else sessions,
+                isHistorySearching = needsSearch,
+            )
+        }
+        if (!needsSearch) return
+
+        val search = historySearch
+        historySearchJob = viewModelScope.launch {
+            val matches = withContext(analysisDispatcher) { search.find(filter) }
+            ensureActive()
+            _uiState.update { it.copy(matchingSessions = matches, isHistorySearching = false) }
         }
     }
 

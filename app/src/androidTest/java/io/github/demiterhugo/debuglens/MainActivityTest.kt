@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -108,6 +109,33 @@ class MainActivityTest {
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.history_empty))
             .performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("history_entry").assertDoesNotExist()
+    }
+
+    @Test
+    fun searchesAndFiltersHistoryAndOpensAMatchingDiagnosis() {
+        val first = "java.lang.NullPointerException: café"
+        analyze(first)
+        composeRule.onNodeWithTag("clear_input").performScrollTo().performClick()
+        analyze("java.lang.IllegalStateException: café")
+
+        composeRule.onNodeWithTag("history_query").performScrollTo().performTextInput("CAFE")
+        composeRule.onNodeWithTag("history_category").performScrollTo().performClick()
+        composeRule.onNodeWithTag("history_category_NULL_REFERENCE").performClick()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().size == 1
+        }
+        composeRule.onNodeWithTag("clear_history").assertDoesNotExist()
+        composeRule.onNodeWithTag("history_entry").performScrollTo().performClick()
+        composeRule.onNodeWithTag("diagnostic_input").performScrollTo().assertTextContains(first)
+
+        composeRule.onNodeWithTag("history_query").performScrollTo().performTextReplacement("sin coincidencia")
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_no_matches").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("history_no_matches").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("history_empty").assertDoesNotExist()
+        composeRule.onNodeWithTag("history_reset_filters").performScrollTo().performClick()
+        assertEquals(2, composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().size)
     }
 
     @Test

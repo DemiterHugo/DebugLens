@@ -3,6 +3,7 @@ package io.github.demiterhugo.debuglens.ui.home
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
+import io.github.demiterhugo.debuglens.domain.usecase.DiagnosticHistoryFilter
 
 data class HomeUiState(
     val input: String = "",
@@ -12,7 +13,10 @@ data class HomeUiState(
     val logcatReadError: LogcatReadError? = null,
     val selectedSession: DiagnosticSession? = null,
     val recentSessions: List<DiagnosticSession> = emptyList(),
+    val matchingSessions: List<DiagnosticSession> = emptyList(),
+    val historyFilter: DiagnosticHistoryFilter = DiagnosticHistoryFilter(),
     val isHistoryLoading: Boolean = true,
+    val isHistorySearching: Boolean = false,
     val historyLoadError: Boolean = false,
     val isClearingHistory: Boolean = false,
     val operationError: HomeOperationError? = null,

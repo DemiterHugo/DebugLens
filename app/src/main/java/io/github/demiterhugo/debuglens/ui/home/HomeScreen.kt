@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.demiterhugo.debuglens.R
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInput
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
@@ -114,6 +115,9 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onCaptureLogcat = viewModel::captureLogcat,
         onCancelLogcatCapture = viewModel::cancelLogcatCapture,
         onOpenSession = viewModel::openSession,
+        onHistoryQueryChange = viewModel::updateHistoryQuery,
+        onHistoryCategorySelected = viewModel::selectHistoryCategory,
+        onResetHistoryFilter = viewModel::resetHistoryFilter,
         onClearHistory = viewModel::clearHistory,
         onRetryHistory = viewModel::retryHistory,
         onShowAbout = viewModel::showAbout,
@@ -163,6 +167,9 @@ internal fun HomeScreen(
     onCaptureLogcat: () -> Unit,
     onCancelLogcatCapture: () -> Unit,
     onOpenSession: (String) -> Unit,
+    onHistoryQueryChange: (String) -> Unit,
+    onHistoryCategorySelected: (DiagnosticCategory?) -> Unit,
+    onResetHistoryFilter: () -> Unit,
     onClearHistory: () -> Unit,
     onRetryHistory: () -> Unit,
     onShowAbout: () -> Unit,
@@ -351,16 +358,30 @@ internal fun HomeScreen(
             } else if (uiState.recentSessions.isEmpty()) {
                 Text(stringResource(R.string.history_empty), modifier = Modifier.testTag("history_empty"))
             } else {
-                TextButton(
-                    onClick = onClearHistory,
-                    enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
-                    modifier = Modifier.testTag("clear_history"),
-                ) {
-                    Text(stringResource(if (uiState.isClearingHistory) R.string.action_clearing_history else R.string.action_clear_history))
+                HistorySearchControls(
+                    filter = uiState.historyFilter,
+                    matchCount = uiState.matchingSessions.size.takeUnless { uiState.isHistorySearching },
+                    onQueryChange = onHistoryQueryChange,
+                    onCategorySelected = onHistoryCategorySelected,
+                    onReset = onResetHistoryFilter,
+                )
+                if (!uiState.historyFilter.isActive) {
+                    TextButton(
+                        onClick = onClearHistory,
+                        enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
+                        modifier = Modifier.testTag("clear_history"),
+                    ) {
+                        Text(stringResource(if (uiState.isClearingHistory) R.string.action_clearing_history else R.string.action_clear_history))
+                    }
                 }
-                uiState.recentSessions.forEach { session ->
+                if (!uiState.isHistorySearching && uiState.matchingSessions.isEmpty()) {
+                    Text(stringResource(R.string.history_no_matches), modifier = Modifier.testTag("history_no_matches"))
+                }
+                uiState.matchingSessions.forEach { session ->
                     Card(
                         onClick = {
+                            keyboard?.hide()
+                            focusManager.clearFocus()
                             val alreadyDisplayed = uiState.selectedSession?.id == session.id
                             onOpenSession(session.id)
                             if (alreadyDisplayed) scope.launch { resultRequester.bringIntoView() }
@@ -437,6 +458,9 @@ private fun HomeScreenPreview() {
             onCaptureLogcat = {},
             onCancelLogcatCapture = {},
             onOpenSession = {},
+            onHistoryQueryChange = {},
+            onHistoryCategorySelected = {},
+            onResetHistoryFilter = {},
             onClearHistory = {},
             onRetryHistory = {},
             onShowAbout = {},

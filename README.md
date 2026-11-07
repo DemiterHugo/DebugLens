@@ -72,6 +72,12 @@ resultado que ya estaba abierto. Las bases de datos, incluidos los archivos
 auxiliares de SQLite, se excluyen de las copias de seguridad y las transferencias
 entre dispositivos mediante las reglas de Android.
 
+En **Análisis recientes**, busca mensajes, tipos de excepción o archivos en el
+fragmento completo de cada diagnóstico guardado. La búsqueda admite varios
+términos e ignora mayúsculas y tildes. Puedes combinarla con una categoría.
+**Restablecer filtros** recupera la lista completa, desde la que puedes borrar
+el historial.
+
 Las orientaciones de la aplicación se apoyan en la documentación de Android sobre
 [trazas](https://developer.android.com/studio/debug/stacktraces),
 [ANR](https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs) y

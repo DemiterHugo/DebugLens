@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelStore
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticAnalysis
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticResult
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatCaptureRepository
@@ -14,11 +15,14 @@ import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -147,6 +151,63 @@ class HomeViewModelTest {
 
         assertEquals("java.lang.NullPointerException: saved", model.uiState.value.input)
         assertEquals(session.analysis, model.uiState.value.analysis)
+    }
+
+    @Test
+    fun historyFiltersFollowNewSnapshotsWithoutChangingTheOpenDiagnosis() = runTest {
+        val model = createModel()
+        model.updateInput("java.lang.NullPointerException: café")
+        model.analyze()
+        advanceUntilIdle()
+        val first = model.uiState.value.recentSessions.single()
+
+        model.updateHistoryQuery("CAFE")
+        runCurrent()
+        assertEquals(listOf(first), model.uiState.value.matchingSessions)
+        model.selectHistoryCategory(DiagnosticCategory.INVALID_STATE)
+        runCurrent()
+        assertTrue(model.uiState.value.matchingSessions.isEmpty())
+        assertEquals(first, model.uiState.value.selectedSession)
+        assertEquals(listOf(first), model.uiState.value.recentSessions)
+
+        model.updateInput("java.lang.IllegalStateException: café")
+        model.analyze()
+        advanceUntilIdle()
+        val second = model.uiState.value.recentSessions.first()
+        assertEquals(listOf(second), model.uiState.value.matchingSessions)
+
+        model.resetHistoryFilter()
+        assertFalse(model.uiState.value.historyFilter.isActive)
+        assertEquals(listOf(second, first), model.uiState.value.matchingSessions)
+    }
+
+    @Test
+    fun historyFilteringWaitsForTheAnalysisDispatcherAndDiscardsAnObsoleteResult() = runTest {
+        val analyzer = AnalyzeDiagnosticUseCase()
+        repository.save((analyzer("IllegalStateException: first") as DiagnosticResult.Success).analysis)
+        val latest = repository.save((analyzer("IllegalStateException: latest") as DiagnosticResult.Success).analysis)
+        val worker = StandardTestDispatcher(TestCoroutineScheduler())
+        val model = createModel(analysisDispatcher = worker)
+        runCurrent()
+        worker.scheduler.runCurrent()
+        runCurrent()
+
+        model.updateHistoryQuery("first")
+        runCurrent()
+        assertEquals("first", model.uiState.value.historyFilter.query)
+        assertTrue(model.uiState.value.isHistorySearching)
+        assertTrue(model.uiState.value.matchingSessions.isEmpty())
+
+        worker.scheduler.runCurrent()
+        model.updateHistoryQuery("latest")
+        runCurrent()
+        assertTrue(model.uiState.value.isHistorySearching)
+        assertTrue(model.uiState.value.matchingSessions.isEmpty())
+
+        worker.scheduler.runCurrent()
+        runCurrent()
+        assertFalse(model.uiState.value.isHistorySearching)
+        assertEquals(listOf(latest), model.uiState.value.matchingSessions)
     }
 
     @Test
@@ -440,11 +501,12 @@ class HomeViewModelTest {
     private fun createModel(
         importer: LogcatImportRepository = LogcatImportRepository { error("Unexpected import") },
         capture: LogcatCaptureRepository = LogcatCaptureRepository { error("Unexpected capture") },
+        analysisDispatcher: CoroutineDispatcher = mainDispatcherRule.dispatcher,
     ): HomeViewModel {
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                HomeViewModel(AnalyzeDiagnosticUseCase(), repository, importer, capture, mainDispatcherRule.dispatcher) as T
+                HomeViewModel(AnalyzeDiagnosticUseCase(), repository, importer, capture, analysisDispatcher) as T
         }
         return ViewModelProvider(store, factory)[HomeViewModel::class.java]
     }
