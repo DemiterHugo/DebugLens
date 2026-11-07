@@ -27,6 +27,7 @@ room3 {
 
 dependencies {
     implementation(project(":domain"))
+    implementation(libs.litert.lm.android)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.sqlite.framework)
     ksp(libs.androidx.room.compiler)

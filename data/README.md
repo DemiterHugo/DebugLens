@@ -38,6 +38,13 @@ mediante `ContentResolver` en `Dispatchers.IO`. Limita la lectura a 2 MiB y
 delega la selección del incidente al caso de uso de `domain`. Al cancelar,
 notifica al proveedor y cierra el descriptor si el documento ya está abierto.
 
+`LiteRtDiagnosticAiRepository` implementa los contratos de gestión de modelos
+y generación de sugerencias de `domain`. Usa un mismo bloqueo para la limpieza
+de copias interrumpidas, los cambios de modelo y la inferencia. Abre una
+conversación con LiteRT-LM sobre el archivo temporal antes de instalarlo mediante
+un renombrado atómico. Cierra la conversación y el motor después de validar el
+modelo o generar una sugerencia en CPU.
+
 Room 3.0.3 usa `AndroidSQLiteDriver` de SQLite 2.7.1, disponible en el sistema
 Android; no se empaqueta otra copia de SQLite. KSP genera el DAO y el esquema
 versionado en `schemas`. La versión inicial es 1 y no se activa ningún fallback

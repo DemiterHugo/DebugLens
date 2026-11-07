@@ -41,7 +41,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.demiterhugo.debuglens.R
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInput
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiControls
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiViewModel
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceState
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceViewModel
 import io.github.demiterhugo.debuglens.ui.diagnostic.diagnosticSurfaceCopy
@@ -56,9 +59,16 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         if (uri != null) viewModel.importLogcat(uri.toString())
     }
     val surfaceViewModel: DiagnosticSurfaceViewModel = hiltViewModel()
+    val aiViewModel: DiagnosticAiViewModel = hiltViewModel()
+    val aiState by aiViewModel.state.collectAsStateWithLifecycle()
+    val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) aiViewModel.installModel(uri.toString())
+    }
     val surfaceState by surfaceViewModel.state.collectAsStateWithLifecycle()
     val session = uiState.selectedSession
-    val copy = session?.let { diagnosticSurfaceCopy(it.analysis) }
+    LaunchedEffect(session?.id) { aiViewModel.selectSession(session?.id) }
+    val advice = aiState.advice.takeIf { aiState.sessionId == session?.id }
+    val copy = session?.let { diagnosticSurfaceCopy(it.analysis, advice) }
     LaunchedEffect(session, copy) {
         if (session != null && copy != null) surfaceViewModel.show(session, copy) else surfaceViewModel.clear()
     }
@@ -74,6 +84,15 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onDismissAbout = viewModel::dismissAbout,
         surfaceState = surfaceState,
         onRetrySurface = surfaceViewModel::retry,
+        aiControls = { selected ->
+            DiagnosticAiControls(
+                state = aiState,
+                onInstall = { modelPicker.launch(arrayOf("*/*")) },
+                onRemove = aiViewModel::removeModel,
+                onGenerate = { aiViewModel.generate(selected) },
+                onCancel = aiViewModel::cancelGeneration,
+            )
+        },
         modifier = modifier,
     )
 }
@@ -92,6 +111,7 @@ internal fun HomeScreen(
     modifier: Modifier = Modifier,
     surfaceState: DiagnosticSurfaceState = DiagnosticSurfaceState(),
     onRetrySurface: () -> Unit = {},
+    aiControls: @Composable (DiagnosticSession) -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -217,6 +237,7 @@ internal fun HomeScreen(
                 )
             }
             uiState.selectedSession?.let {
+                aiControls(it)
                 DiagnosticResultCard(
                     sessionId = it.id,
                     surfaceState = surfaceState,

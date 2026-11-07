@@ -8,9 +8,13 @@ import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.demiterhugo.debuglens.data.repository.AndroidLogcatImportRepository
 import io.github.demiterhugo.debuglens.data.repository.DiagnosticHistoryStorage
+import io.github.demiterhugo.debuglens.data.repository.LiteRtDiagnosticAiRepository
+import io.github.demiterhugo.debuglens.domain.repository.AiModelRepository
+import io.github.demiterhugo.debuglens.domain.repository.DiagnosticAdviceGenerator
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
+import io.github.demiterhugo.debuglens.domain.usecase.GenerateDiagnosticAdviceUseCase
 import javax.inject.Qualifier
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineDispatcher
@@ -37,6 +41,21 @@ object DiagnosticModule {
     @Provides
     fun provideLogcatImporter(@ApplicationContext context: Context): LogcatImportRepository =
         AndroidLogcatImportRepository(context.contentResolver)
+
+    @Provides
+    @Singleton
+    fun provideLiteRtDiagnosticAi(@ApplicationContext context: Context): LiteRtDiagnosticAiRepository =
+        LiteRtDiagnosticAiRepository(context)
+
+    @Provides
+    fun provideAiModels(backend: LiteRtDiagnosticAiRepository): AiModelRepository = backend
+
+    @Provides
+    fun provideAdviceGenerator(backend: LiteRtDiagnosticAiRepository): DiagnosticAdviceGenerator = backend
+
+    @Provides
+    fun provideGenerateAdvice(generator: DiagnosticAdviceGenerator): GenerateDiagnosticAdviceUseCase =
+        GenerateDiagnosticAdviceUseCase(generator)
 
     @Provides
     @AnalysisDispatcher

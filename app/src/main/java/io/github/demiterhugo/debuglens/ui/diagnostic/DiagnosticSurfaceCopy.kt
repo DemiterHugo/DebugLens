@@ -7,7 +7,7 @@ import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticAnalysis
 
 @Composable
-internal fun diagnosticSurfaceCopy(analysis: DiagnosticAnalysis): DiagnosticSurfaceCopy {
+internal fun diagnosticSurfaceCopy(analysis: DiagnosticAnalysis, aiAdvice: String? = null): DiagnosticSurfaceCopy {
     val category = analysis.category
     val firstCheck = when (category) {
         DiagnosticCategory.NULL_REFERENCE -> R.string.check_null_reference
@@ -40,5 +40,12 @@ internal fun diagnosticSurfaceCopy(analysis: DiagnosticAnalysis): DiagnosticSurf
         showSource = stringResource(R.string.a2ui_show_source),
         hideSource = stringResource(R.string.a2ui_hide_source),
         sourceOmitted = stringResource(R.string.a2ui_source_omitted),
+        ai = aiAdvice?.let {
+            AiDiagnosticCopy(
+                title = stringResource(R.string.ai_result_title),
+                advice = it,
+                note = stringResource(R.string.ai_result_note),
+            )
+        },
     )
 }

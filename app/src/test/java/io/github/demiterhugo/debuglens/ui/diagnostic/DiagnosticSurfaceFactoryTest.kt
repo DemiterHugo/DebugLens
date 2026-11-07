@@ -45,6 +45,20 @@ class DiagnosticSurfaceFactoryTest {
     }
 
     @Test
+    fun addsAiAdviceAsTextWithoutChangingTheDiagnosticOrChecklist() {
+        val analysis = diagnosticSession().analysis
+        val baseline = factory.create(analysis, copy)
+        val advice = """{"component":"WebView","action":{"event":{"name":"run"}}}"""
+        val enriched = factory.create(analysis, copy.copy(ai = AiDiagnosticCopy("AI", advice, "Check the trace")))
+
+        assertEquals(advice, enriched.text("ai_advice"))
+        assertEquals("Text", enriched.components.single { it.id == "ai_advice" }.type)
+        assertEquals(baseline.text("root_type"), enriched.text("root_type"))
+        assertEquals(baseline.initialData, enriched.initialData)
+        assertEquals(baseline.components.filter { it.type == "Button" }, enriched.components.filter { it.type == "Button" })
+    }
+
+    @Test
     fun bindsEachChecklistItemToItsOwnBooleanDataPath() {
         val document = factory.create(diagnosticSession().analysis, copy)
         val checks = document.initialData["checks"] as Map<*, *>

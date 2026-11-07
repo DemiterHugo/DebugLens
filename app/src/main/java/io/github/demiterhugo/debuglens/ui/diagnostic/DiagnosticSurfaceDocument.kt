@@ -23,7 +23,10 @@ internal data class DiagnosticSurfaceCopy(
     val showSource: String,
     val hideSource: String,
     val sourceOmitted: String,
+    val ai: AiDiagnosticCopy? = null,
 )
+
+internal data class AiDiagnosticCopy(val title: String, val advice: String, val note: String)
 
 internal data class DiagnosticSurfaceDocument(
     val components: List<A2uiComponentPayload>,
@@ -74,6 +77,11 @@ internal class DiagnosticSurfaceFactory {
         }
         text("guidance_title", copy.guidanceTitle, "section")
         text("guidance", copy.guidance)
+        copy.ai?.let {
+            text("ai_title", it.title, "section")
+            text("ai_advice", it.advice)
+            text("ai_note", it.note, "label")
+        }
         text("checklist_title", copy.checklistTitle, "section")
         copy.checklist.forEachIndexed { index, label ->
             val id = "check_$index"

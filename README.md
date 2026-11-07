@@ -60,7 +60,7 @@ una base de datos privada del dispositivo. Se conserva al cerrar el proceso y se
 elimina al borrar el historial, los datos de la aplicación o la propia aplicación.
 El borrador, el resultado abierto y las casillas de revisión se conservan al
 recrear la Activity, pero no al terminar el proceso. Al volver a abrir la app se
-pueden recuperar los análisis desde el historial. No hay acceso a la red ni IA.
+pueden recuperar los análisis desde el historial. La app funciona sin conexión.
 
 La pantalla distingue la carga del historial de un historial vacío y ofrece
 reintentar su lectura. Si falla el guardado, el diagnóstico sigue disponible
@@ -133,6 +133,34 @@ los recortes de la cadena y del original. Estos límites no modifican el resulta
 ni el fragmento completo guardados en el historial. La interfaz ofrece estados
 de carga y error y permite reconstruir una superficie fallida sin repetir el análisis.
 El procesador se cancela y libera sus superficies al finalizar el ViewModel.
+
+## Ampliar un diagnóstico con IA local
+
+1. Consigue un modelo de texto compatible en formato `.litertlm` y copia el
+   archivo a Descargas del dispositivo. Se ha probado
+   [Qwen3 0.6B INT4 sin razonamiento previo](https://huggingface.co/litert-community/Qwen3-0.6B-int4/blob/56621f0/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm)
+   (347 MB) con LiteRT-LM 0.16.1. Para una prueba más ligera está
+   [SmolLM2 135M Instruct](https://huggingface.co/litert-community/SmolLM2-135M-Instruct/tree/8111e0a)
+   (143 MB), que puede responder en inglés y con menos detalle.
+2. Importa un volcado de Logcat y pulsa **Analizar**. En el resultado, pulsa
+   **Cargar modelo de IA** y elige el archivo. DebugLens admite un modelo a la
+   vez, de hasta 1 GiB, y guarda su copia en almacenamiento privado excluido de
+   las copias de seguridad. Antes de sustituirlo, DebugLens comprueba que
+   LiteRT-LM puede abrir el nuevo modelo. Si falla, conserva el modelo anterior.
+   Puedes cambiarlo o quitarlo desde el diagnóstico.
+3. Pulsa **Ampliar con IA**. La hipótesis aparece en la superficie A2UI junto
+   a la evidencia y a las comprobaciones del análisis local.
+
+[LiteRT-LM](https://developers.google.com/edge/litert-lm/android) ejecuta el
+modelo en la CPU del dispositivo en procesos compatibles arm64 o x86-64.
+La generación usa los datos del análisis local y, si el analizador no reconoce
+la excepción ni el ANR, un extracto acotado de la traza. La calidad, el idioma
+y el tiempo de respuesta dependen del modelo.
+La sugerencia se conserva mientras el diagnóstico sigue seleccionado. El
+historial guarda el resultado local y permite volver a solicitar una sugerencia.
+
+La app incorpora la respuesta como texto al catálogo A2UI. La traza, los datos
+de diagnóstico y la inferencia permanecen en el dispositivo.
 
 ## Presentación e inyección
 
@@ -229,6 +257,6 @@ de causas huérfanas, rollback, emisiones de Flow e inserciones concurrentes.
 
 ## Alcance de esta base
 
-Integración con IA, lectura automática de Logcat y red quedan
+Lectura automática de Logcat y red quedan
 para las siguientes funcionalidades. La aplicación no solicita permisos de
 diagnóstico ni añade clientes de red. El historial se conserva localmente con Room.

@@ -15,6 +15,7 @@ a2ui = "1.0.0-alpha02"
 room = "3.0.3"
 sqlite = "2.7.1"
 testRunner = "1.7.0"
+litertLm = "0.16.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -44,6 +45,7 @@ androidx-room-runtime = { group = "androidx.room3", name = "room3-runtime", vers
 androidx-room-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "room" }
 androidx-sqlite-framework = { group = "androidx.sqlite", name = "sqlite-framework", version.ref = "sqlite" }
 androidx-test-runner = { group = "androidx.test", name = "runner", version.ref = "testRunner" }
+litert-lm-android = { group = "com.google.ai.edge.litertlm", name = "litertlm-android", version.ref = "litertLm" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
