@@ -6,8 +6,10 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.demiterhugo.debuglens.data.repository.AndroidLogcatImportRepository
 import io.github.demiterhugo.debuglens.data.repository.DiagnosticHistoryStorage
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import javax.inject.Qualifier
 import javax.inject.Singleton
@@ -31,6 +33,10 @@ object DiagnosticModule {
 
     @Provides
     fun provideHistoryRepository(storage: DiagnosticHistoryStorage): DiagnosticHistoryRepository = storage.repository
+
+    @Provides
+    fun provideLogcatImporter(@ApplicationContext context: Context): LogcatImportRepository =
+        AndroidLogcatImportRepository(context.contentResolver)
 
     @Provides
     @AnalysisDispatcher

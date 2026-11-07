@@ -31,7 +31,12 @@ ubican en `src/test/kotlin` y las de SQL real en `src/androidTest/kotlin`.
 
 Los registros sobreviven al cierre del proceso. Las reglas de backup de `app`
 excluyen las bases de datos de la copia en la nube y la transferencia a otro
-dispositivo. No hay implementaciones de lectura de Logcat, IA, A2UI ni red.
+dispositivo.
+
+`AndroidLogcatImportRepository` lee el documento que el usuario selecciona
+mediante `ContentResolver` en `Dispatchers.IO`. Limita la lectura a 2 MiB y
+delega la selección del incidente al caso de uso de `domain`. Al cancelar,
+notifica al proveedor y cierra el descriptor si el documento ya está abierto.
 
 Room 3.0.3 usa `AndroidSQLiteDriver` de SQLite 2.7.1, disponible en el sistema
 Android; no se empaqueta otra copia de SQLite. KSP genera el DAO y el esquema

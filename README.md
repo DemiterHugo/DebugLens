@@ -30,9 +30,9 @@ están en [domain/README.md](domain/README.md) y [data/README.md](data/README.md
 
 ## Flujo disponible
 
-1. Introducir o pegar un fragmento, o cargar el **Ejemplo** incorporado, hasta
-   65.536 unidades UTF-16 (el límite de
-   `String.length`, contado antes de normalizar).
+1. Introducir o pegar un fragmento, cargar el **Ejemplo** o usar **Importar Logcat**.
+   La entrada admite hasta 65.536 unidades UTF-16 (el límite de `String.length`,
+   contado antes de normalizar).
 2. Pulsar **Analizar** para validar el texto y procesarlo en `Dispatchers.Default`.
 3. Consultar una interfaz A2UI adaptada al patrón detectado, con la última
    excepción de la cadena principal, el mensaje y la ubicación disponibles.
@@ -42,7 +42,7 @@ están en [domain/README.md](domain/README.md) y [data/README.md](data/README.md
 
 La entrada normaliza CRLF y CR a LF y elimina el espacio exterior. Se rechazan
 las entradas vacías y demasiado largas. Cambiar la entrada cancela el análisis
-en curso y retira el resultado anterior.
+o la importación en curso y retira el resultado anterior.
 
 El clasificador reconoce referencias nulas, estados y argumentos inválidos,
 índices fuera de rango, conversiones de tipo, restricciones de seguridad,
@@ -51,8 +51,7 @@ conservan su evidencia y se muestran como **Patrón no reconocido**.
 
 Se procesa la primera cadena de excepciones, se siguen sus líneas `Caused by`
 y se excluyen las ramas `Suppressed`. Se aceptan trazas simples y varios prefijos
-habituales de texto copiado de Android Studio o Logcat. Esto procesa texto pegado
-manualmente; la aplicación no lee Logcat. No reconstruye trazas ofuscadas ni
+habituales de texto copiado de Android Studio o Logcat. No reconstruye trazas ofuscadas ni
 confirma por sí solo la causa de un ANR. La ubicación destacada prioriza marcos
 con línea fuera de los prefijos habituales del framework; es una heurística.
 
@@ -74,6 +73,37 @@ Las orientaciones de la aplicación se apoyan en la documentación de Android so
 [trazas](https://developer.android.com/studio/debug/stacktraces),
 [ANR](https://developer.android.com/topic/performance/anrs/diagnose-and-fix-anrs) y
 [volcados de memoria](https://developer.android.com/studio/profile/capture-heap-dump).
+
+## Importar un volcado de Logcat
+
+Desde PowerShell, exporta el búfer de fallos Java de un dispositivo con ADB y
+copia el archivo al dispositivo donde está instalada DebugLens. La redirección
+se ejecuta en `cmd.exe` para guardar los bytes de `adb exec-out` directamente,
+sin que la página de códigos de PowerShell altere los mensajes:
+
+```powershell
+cmd.exe /d /c 'adb exec-out logcat -d -b crash -v threadtime > logcat.txt'
+adb push logcat.txt /sdcard/Download/logcat.txt
+```
+
+Para exportar ANR, sustituye la primera orden por esta:
+
+```powershell
+cmd.exe /d /c 'adb exec-out logcat -d -b system -v threadtime ActivityManager:E *:S > logcat.txt'
+```
+
+En DebugLens, pulsa **Importar Logcat** y elige el archivo. La app carga el
+último fallo Java o ANR según el orden del volcado. En un fallo Java de una app
+o del sistema conserva las líneas de `AndroidRuntime` del mismo proceso e hilo. En un ANR
+conserva el encabezado de `ActivityManager`. Revisa el fragmento y pulsa
+**Analizar** para mostrar el diagnóstico A2UI y guardarlo en el historial.
+
+La importación admite archivos de hasta 2 MiB en UTF-8 o UTF-16 con BOM y el
+formato `threadtime`. Si el fallo no aparece en el volcado o el fragmento supera
+el límite de la entrada, exporta un intervalo más corto o pega la traza relevante.
+El [selector de Android](https://developer.android.com/training/data-storage/shared/documents-files)
+concede acceso al archivo elegido. La lectura global de Logcat está
+[restringida por Android](https://developer.android.com/reference/android/Manifest.permission#READ_LOGS).
 
 ## Diagnósticos con A2UI
 
@@ -179,6 +209,8 @@ La segunda orden necesita un dispositivo o emulador conectado. Las pruebas
 unitarias cubren normalización, límites, cadenas de causas, ramas suprimidas,
 formatos de entrada, clasificación, mapeo del historial y su coordinación
 desde el ViewModel, incluyendo cancelación y reintentos después de un fallo.
+También cubren la selección de incidentes de Logcat y la coordinación de su
+importación con el borrador y el guardado.
 Las pruebas de coroutines usan `kotlinx-coroutines-test` y un fake del contrato.
 También se comprueban los componentes generados, los límites de presentación,
 las acciones permitidas, el reemplazo de superficies, los eventos obsoletos y la

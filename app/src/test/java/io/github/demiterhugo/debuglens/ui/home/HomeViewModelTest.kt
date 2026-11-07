@@ -8,6 +8,8 @@ import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
@@ -285,11 +287,69 @@ class HomeViewModelTest {
         assertEquals(2, model.uiState.value.recentSessions.size)
     }
 
-    private fun createModel(): HomeViewModel {
+    @Test
+    fun importedLogcatIsSavedOnlyAfterTheUserAnalyzesIt() = runTest {
+        val trace = "11-07 10:11:12.100  2200  2200 E AndroidRuntime: java.lang.IllegalStateException: sample"
+        val model = createModel(LogcatImportRepository { LogcatImportResult.Imported(trace) })
+
+        model.importLogcat("selected-document")
+        advanceUntilIdle()
+
+        assertEquals(trace, model.uiState.value.input)
+        assertNull(model.uiState.value.selectedSession)
+        assertEquals(0, repository.saveCalls)
+
+        model.analyze()
+        advanceUntilIdle()
+        assertEquals(DiagnosticCategory.INVALID_STATE, model.uiState.value.analysis?.category)
+        assertEquals(1, repository.saveCalls)
+    }
+
+    @Test
+    fun failedLogcatImportPreservesTheCurrentDraftAndAnalysis() = runTest {
+        val model = createModel(LogcatImportRepository { LogcatImportResult.Failure.NO_INCIDENT })
+        val draft = "java.lang.NullPointerException"
+        model.updateInput(draft)
+        model.analyze()
+        advanceUntilIdle()
+        val selected = model.uiState.value.selectedSession
+
+        model.importLogcat("empty-log")
+        advanceUntilIdle()
+
+        assertEquals(draft, model.uiState.value.input)
+        assertEquals(selected, model.uiState.value.selectedSession)
+        assertEquals(LogcatImportResult.Failure.NO_INCIDENT, model.uiState.value.logcatImportError)
+        assertFalse(model.uiState.value.isImportingLogcat)
+    }
+
+    @Test
+    fun editingTheDraftCancelsAnImportAndPreventsAStaleResult() = runTest {
+        val model = createModel(LogcatImportRepository {
+            try {
+                awaitCancellation()
+            } catch (_: kotlinx.coroutines.CancellationException) {
+                LogcatImportResult.Imported("late result")
+            }
+        })
+        model.importLogcat("slow-document")
+        runCurrent()
+        assertTrue(model.uiState.value.isImportingLogcat)
+
+        model.updateInput("new draft")
+        advanceUntilIdle()
+        assertEquals("new draft", model.uiState.value.input)
+        assertNull(model.uiState.value.logcatImportError)
+        assertFalse(model.uiState.value.isImportingLogcat)
+    }
+
+    private fun createModel(
+        importer: LogcatImportRepository = LogcatImportRepository { error("Unexpected import") },
+    ): HomeViewModel {
         val factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                HomeViewModel(AnalyzeDiagnosticUseCase(), repository, mainDispatcherRule.dispatcher) as T
+                HomeViewModel(AnalyzeDiagnosticUseCase(), repository, importer, mainDispatcherRule.dispatcher) as T
         }
         return ViewModelProvider(store, factory)[HomeViewModel::class.java]
     }

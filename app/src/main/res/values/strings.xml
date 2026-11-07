@@ -9,6 +9,13 @@
     <string name="home_about_description">DebugLens analiza el texto que introduces y ofrece orientación sobre patrones habituales de errores de Android. Los últimos 20 análisis se guardan en este dispositivo y puedes borrarlos desde el historial.</string>
     <string name="action_close">Cerrar</string>
     <string name="action_analyze">Analizar</string>
+    <string name="action_import_logcat">Importar Logcat</string>
+    <string name="action_importing_logcat">Importando Logcat…</string>
+    <string name="logcat_unreadable">No se ha podido leer el archivo. Vuelve a seleccionarlo.</string>
+    <string name="logcat_file_too_large">El archivo supera los 2 MiB. Exporta un intervalo más corto de Logcat.</string>
+    <string name="logcat_invalid_encoding">El archivo no es texto UTF-8 ni UTF-16 con marca de orden de bytes.</string>
+    <string name="logcat_no_incident">No se encontró un fallo Java ni un ANR. Comprueba que el volcado use el formato threadtime.</string>
+    <string name="logcat_incident_too_long">El fallo más reciente supera el límite de la entrada. Copia un fragmento de la traza.</string>
     <string name="action_load_example">Ejemplo</string>
     <string name="example_stack_trace" translatable="false">java.lang.RuntimeException: Unable to render profile\nCaused by: java.lang.NullPointerException: Profile name is null\n\tat com.example.Profile.render(Profile.kt:42)</string>
     <string name="action_analyzing">Analizando…</string>

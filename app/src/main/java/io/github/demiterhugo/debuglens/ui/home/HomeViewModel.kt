@@ -7,6 +7,8 @@ import io.github.demiterhugo.debuglens.di.AnalysisDispatcher
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticResult
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
+import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
 import javax.inject.Inject
 import java.util.UUID
@@ -25,11 +27,12 @@ import kotlinx.coroutines.withContext
 class HomeViewModel @Inject constructor(
     private val analyzeDiagnostic: AnalyzeDiagnosticUseCase,
     private val historyRepository: DiagnosticHistoryRepository,
+    private val logcatImporter: LogcatImportRepository,
     @param:AnalysisDispatcher private val analysisDispatcher: CoroutineDispatcher,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
-    private var analysisJob: Job? = null
+    private var inputJob: Job? = null
     private var historyJob: Job? = null
     private var inputRevision = 0L
 
@@ -58,7 +61,11 @@ class HomeViewModel @Inject constructor(
     }
 
     fun updateInput(input: String) {
-        cancelAnalysis()
+        cancelInputOperation()
+        replaceInput(input)
+    }
+
+    private fun replaceInput(input: String) {
         _uiState.update {
             it.copy(
                 input = input,
@@ -66,18 +73,51 @@ class HomeViewModel @Inject constructor(
                 selectedSession = null,
                 operationError = null,
                 isAnalyzing = false,
+                isImportingLogcat = false,
+                logcatImportError = null,
             )
         }
     }
 
+    fun importLogcat(documentId: String) {
+        if (_uiState.value.isInputBusy || _uiState.value.isClearingHistory) return
+        val revision = inputRevision
+        _uiState.update { it.copy(isImportingLogcat = true, logcatImportError = null) }
+        inputJob = viewModelScope.launch {
+            try {
+                val result = logcatImporter.importDocument(documentId)
+                ensureActive()
+                when (result) {
+                    is LogcatImportResult.Imported -> replaceInput(result.trace)
+                    is LogcatImportResult.Failure -> _uiState.update { it.copy(logcatImportError = result) }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                ensureActive()
+                _uiState.update { it.copy(logcatImportError = LogcatImportResult.Failure.UNREADABLE) }
+            } finally {
+                if (inputRevision == revision) {
+                    _uiState.update { it.copy(isImportingLogcat = false) }
+                }
+            }
+        }
+    }
+
     fun analyze() {
-        if (_uiState.value.isAnalyzing || _uiState.value.isClearingHistory) return
+        if (_uiState.value.isInputBusy || _uiState.value.isClearingHistory) return
         val input = _uiState.value.input
         val revision = inputRevision
         _uiState.update {
-            it.copy(isAnalyzing = true, inputError = null, selectedSession = null, operationError = null)
+            it.copy(
+                isAnalyzing = true,
+                inputError = null,
+                selectedSession = null,
+                operationError = null,
+                logcatImportError = null,
+            )
         }
-        analysisJob = viewModelScope.launch {
+        inputJob = viewModelScope.launch {
             try {
                 val result = withContext(analysisDispatcher) { analyzeDiagnostic(input) }
                 ensureActive()
@@ -111,7 +151,7 @@ class HomeViewModel @Inject constructor(
 
     fun openSession(id: String) {
         val session = _uiState.value.recentSessions.firstOrNull { it.id == id } ?: return
-        cancelAnalysis()
+        cancelInputOperation()
         _uiState.update {
             it.copy(
                 input = session.analysis.input.text,
@@ -119,12 +159,14 @@ class HomeViewModel @Inject constructor(
                 inputError = null,
                 operationError = null,
                 isAnalyzing = false,
+                isImportingLogcat = false,
+                logcatImportError = null,
             )
         }
     }
 
     fun clearHistory() {
-        if (_uiState.value.isClearingHistory || _uiState.value.isAnalyzing) return
+        if (_uiState.value.isClearingHistory || _uiState.value.isInputBusy) return
         _uiState.update {
             it.copy(
                 isClearingHistory = true,
@@ -152,9 +194,9 @@ class HomeViewModel @Inject constructor(
         _uiState.update { it.copy(isAboutVisible = false) }
     }
 
-    private fun cancelAnalysis() {
+    private fun cancelInputOperation() {
         inputRevision++
-        analysisJob?.cancel()
-        analysisJob = null
+        inputJob?.cancel()
+        inputJob = null
     }
 }

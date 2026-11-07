@@ -1,5 +1,7 @@
 package io.github.demiterhugo.debuglens.ui.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +41,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.demiterhugo.debuglens.R
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInput
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticInputError
+import io.github.demiterhugo.debuglens.domain.repository.LogcatImportResult
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceState
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceViewModel
 import io.github.demiterhugo.debuglens.ui.diagnostic.diagnosticSurfaceCopy
@@ -49,6 +52,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val logcatPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) viewModel.importLogcat(uri.toString())
+    }
     val surfaceViewModel: DiagnosticSurfaceViewModel = hiltViewModel()
     val surfaceState by surfaceViewModel.state.collectAsStateWithLifecycle()
     val session = uiState.selectedSession
@@ -60,6 +66,7 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         uiState = uiState,
         onInputChange = viewModel::updateInput,
         onAnalyze = viewModel::analyze,
+        onImportLogcat = { logcatPicker.launch(arrayOf("text/*", "application/octet-stream")) },
         onOpenSession = viewModel::openSession,
         onClearHistory = viewModel::clearHistory,
         onRetryHistory = viewModel::retryHistory,
@@ -76,6 +83,7 @@ internal fun HomeScreen(
     uiState: HomeUiState,
     onInputChange: (String) -> Unit,
     onAnalyze: () -> Unit,
+    onImportLogcat: () -> Unit,
     onOpenSession: (String) -> Unit,
     onClearHistory: () -> Unit,
     onRetryHistory: () -> Unit,
@@ -129,6 +137,31 @@ internal fun HomeScreen(
                     modifier = Modifier.testTag("load_example"),
                 ) { Text(stringResource(R.string.action_load_example)) }
             }
+            TextButton(
+                onClick = {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                    onImportLogcat()
+                },
+                enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
+                modifier = Modifier.testTag("import_logcat"),
+            ) {
+                Text(stringResource(if (uiState.isImportingLogcat) R.string.action_importing_logcat else R.string.action_import_logcat))
+            }
+            uiState.logcatImportError?.let { error ->
+                Text(
+                    stringResource(
+                        when (error) {
+                            LogcatImportResult.Failure.UNREADABLE -> R.string.logcat_unreadable
+                            LogcatImportResult.Failure.FILE_TOO_LARGE -> R.string.logcat_file_too_large
+                            LogcatImportResult.Failure.INVALID_ENCODING -> R.string.logcat_invalid_encoding
+                            LogcatImportResult.Failure.NO_INCIDENT -> R.string.logcat_no_incident
+                            LogcatImportResult.Failure.INCIDENT_TOO_LONG -> R.string.logcat_incident_too_long
+                        },
+                    ),
+                    color = MaterialTheme.colorScheme.error,
+                )
+            }
             OutlinedTextField(
                 value = uiState.input,
                 onValueChange = onInputChange,
@@ -159,7 +192,7 @@ internal fun HomeScreen(
                         focusManager.clearFocus()
                         onAnalyze()
                     },
-                    enabled = !uiState.isAnalyzing && !uiState.isClearingHistory,
+                    enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
                     modifier = Modifier.testTag("analyze_input"),
                 ) {
                     Text(stringResource(if (uiState.isAnalyzing) R.string.action_analyzing else R.string.action_analyze))
@@ -170,7 +203,7 @@ internal fun HomeScreen(
                     modifier = Modifier.testTag("clear_input"),
                 ) { Text(stringResource(R.string.action_clear_input)) }
             }
-            if (uiState.isAnalyzing) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            if (uiState.isInputBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             uiState.operationError?.let { error ->
                 Text(
                     stringResource(
@@ -209,7 +242,7 @@ internal fun HomeScreen(
             } else {
                 TextButton(
                     onClick = onClearHistory,
-                    enabled = !uiState.isAnalyzing && !uiState.isClearingHistory,
+                    enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
                     modifier = Modifier.testTag("clear_history"),
                 ) {
                     Text(stringResource(if (uiState.isClearingHistory) R.string.action_clearing_history else R.string.action_clear_history))
@@ -264,6 +297,7 @@ private fun HomeScreenPreview() {
             uiState = HomeUiState(),
             onInputChange = {},
             onAnalyze = {},
+            onImportLogcat = {},
             onOpenSession = {},
             onClearHistory = {},
             onRetryHistory = {},
