@@ -46,6 +46,12 @@ La captura tolera secuencias UTF-8 inválidas mediante el carácter de reemplazo
 Room busca una sesión con la misma traza y guarda la captura en una sola
 transacción si aún no existe.
 
+`AndroidDiagnosticReportWriter` crea un documento nuevo en la carpeta
+elegida y escribe el informe UTF-8 mediante `ContentResolver` en
+`Dispatchers.IO`. Al cancelar, señala al proveedor y cierra el descriptor
+abierto. Si la escritura falla o se cancela, intenta borrar el documento
+creado por esa exportación.
+
 `LiteRtDiagnosticAiRepository` implementa los contratos de gestión de modelos
 y generación de sugerencias de `domain`. Usa un mismo bloqueo para la limpieza
 de copias interrumpidas, los cambios de modelo y la inferencia. Abre una

@@ -127,6 +127,17 @@ class MainActivityTest {
         composeRule.onNodeWithText("Profile.kt:42").performScrollTo().assertIsDisplayed()
     }
 
+    @Test
+    fun reportOptionsExcludeTheOriginalTraceByDefaultEachTime() {
+        analyze("java.lang.IllegalStateException: export example")
+        composeRule.onNodeWithTag("export_diagnostic").performScrollTo().performClick()
+        composeRule.onNodeWithTag("export_include_trace").assertIsOff().performClick().assertIsOn()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.export_cancel)).performClick()
+
+        composeRule.onNodeWithTag("export_diagnostic").performScrollTo().performClick()
+        composeRule.onNodeWithTag("export_include_trace").assertIsOff()
+    }
+
     private fun analyze(input: String) {
         composeRule.onNodeWithTag("diagnostic_input").performScrollTo().performTextInput(input)
         composeRule.onNodeWithTag("analyze_input").performScrollTo().performClick()

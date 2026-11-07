@@ -1,5 +1,6 @@
 package io.github.demiterhugo.debuglens.ui.home
 
+import android.content.ActivityNotFoundException
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +20,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -45,9 +49,15 @@ import io.github.demiterhugo.debuglens.domain.model.DiagnosticSession
 import io.github.demiterhugo.debuglens.domain.repository.LogcatIncidentResult
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiControls
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiViewModel
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticExportAction
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticExportStatus
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticExportViewModel
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticReportLabels
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceState
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceViewModel
 import io.github.demiterhugo.debuglens.ui.diagnostic.diagnosticSurfaceCopy
+import io.github.demiterhugo.debuglens.ui.diagnostic.diagnosticText
+import io.github.demiterhugo.debuglens.ui.diagnostic.formatDiagnosticReport
 import io.github.demiterhugo.debuglens.ui.diagnostic.titleResource
 import io.github.demiterhugo.debuglens.ui.theme.DebugLensTheme
 import kotlinx.coroutines.launch
@@ -64,11 +74,35 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
     val modelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) aiViewModel.installModel(uri.toString())
     }
+    val exportViewModel: DiagnosticExportViewModel = hiltViewModel()
+    val exportStatus by exportViewModel.status.collectAsStateWithLifecycle()
+    val exportPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        exportViewModel.onDestinationSelected(uri?.toString())
+    }
+    val snackbar = remember { SnackbarHostState() }
+    val exportProgress = stringResource(R.string.export_writing)
+    val cancelExport = stringResource(R.string.export_cancel)
+    val exportMessage = when (exportStatus) {
+        DiagnosticExportStatus.SAVED -> stringResource(R.string.export_saved)
+        DiagnosticExportStatus.CANCELLED -> stringResource(R.string.export_cancelled)
+        DiagnosticExportStatus.FAILED -> stringResource(R.string.export_failed)
+        else -> null
+    }
+    LaunchedEffect(exportStatus, exportMessage, exportProgress, cancelExport) {
+        if (exportStatus == DiagnosticExportStatus.WRITING) {
+            snackbar.showSnackbar(exportProgress, cancelExport, duration = SnackbarDuration.Indefinite)
+            exportViewModel.cancelWrite()
+        } else if (exportMessage != null) {
+            snackbar.showSnackbar(exportMessage)
+            exportViewModel.dismissResult()
+        }
+    }
     val surfaceState by surfaceViewModel.state.collectAsStateWithLifecycle()
     val session = uiState.selectedSession
     LaunchedEffect(session?.id) { aiViewModel.selectSession(session?.id) }
     val advice = aiState.advice.takeIf { aiState.sessionId == session?.id }
-    val copy = session?.let { diagnosticSurfaceCopy(it.analysis, advice) }
+    val text = session?.let { diagnosticText(it.analysis.category, advice) }
+    val copy = if (session != null && text != null) diagnosticSurfaceCopy(session.analysis, text) else null
     LaunchedEffect(session, copy) {
         if (session != null && copy != null) surfaceViewModel.show(session, copy) else surfaceViewModel.clear()
     }
@@ -86,6 +120,27 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onDismissAbout = viewModel::dismissAbout,
         surfaceState = surfaceState,
         onRetrySurface = surfaceViewModel::retry,
+        snackbarHost = { SnackbarHost(snackbar) },
+        exportAction = {
+            if (session != null && text != null) {
+                val labels = DiagnosticReportLabels(
+                    appName = stringResource(R.string.app_name),
+                    causes = stringResource(R.string.export_report_causes),
+                    anr = stringResource(R.string.export_report_anr),
+                    trace = stringResource(R.string.export_report_trace),
+                )
+                DiagnosticExportAction(session.id, text.ai != null, exportStatus) { includeTrace, includeAdvice ->
+                    val report = formatDiagnosticReport(session.analysis, text, labels, includeTrace, includeAdvice)
+                    if (exportViewModel.prepare(report)) {
+                        try {
+                            exportPicker.launch(null)
+                        } catch (_: ActivityNotFoundException) {
+                            exportViewModel.onPickerUnavailable()
+                        }
+                    }
+                }
+            }
+        },
         aiControls = { selected ->
             DiagnosticAiControls(
                 state = aiState,
@@ -115,6 +170,8 @@ internal fun HomeScreen(
     modifier: Modifier = Modifier,
     surfaceState: DiagnosticSurfaceState = DiagnosticSurfaceState(),
     onRetrySurface: () -> Unit = {},
+    snackbarHost: @Composable () -> Unit = {},
+    exportAction: @Composable () -> Unit = {},
     aiControls: @Composable (DiagnosticSession) -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
@@ -128,7 +185,7 @@ internal fun HomeScreen(
             resultRequester.bringIntoView()
         }
     }
-    Scaffold(modifier = modifier.fillMaxSize()) { contentPadding ->
+    Scaffold(modifier = modifier.fillMaxSize(), snackbarHost = snackbarHost) { contentPadding ->
         Column(
             modifier = Modifier
                 .padding(contentPadding)
@@ -275,6 +332,7 @@ internal fun HomeScreen(
                     surfaceState = surfaceState,
                     onRetry = onRetrySurface,
                     headerModifier = Modifier.bringIntoViewRequester(resultRequester).testTag("analysis_heading"),
+                    actions = exportAction,
                 )
             }
             Text(stringResource(R.string.history_title), style = MaterialTheme.typography.titleLarge)

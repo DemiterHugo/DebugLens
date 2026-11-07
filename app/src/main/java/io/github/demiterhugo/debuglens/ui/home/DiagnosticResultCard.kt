@@ -20,8 +20,10 @@ internal fun DiagnosticResultCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     headerModifier: Modifier = Modifier,
+    actions: @Composable () -> Unit = {},
 ) {
     Card(modifier = modifier.fillMaxWidth().testTag("analysis_result")) {
+        actions()
         Box(Modifier.padding(20.dp)) {
             when {
                 surfaceState.sessionId != sessionId -> DiagnosticSurfaceLoading(headerModifier)

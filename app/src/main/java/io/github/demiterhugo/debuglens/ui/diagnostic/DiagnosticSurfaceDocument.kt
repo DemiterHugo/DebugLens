@@ -8,14 +8,7 @@ internal const val TOGGLE_CAUSES = "toggle_causes"
 internal const val TOGGLE_SOURCE = "toggle_source"
 
 internal data class DiagnosticSurfaceCopy(
-    val label: String,
-    val title: String,
-    val limitations: String,
-    val location: String,
-    val guidanceTitle: String,
-    val guidance: String,
-    val checklistTitle: String,
-    val checklist: List<String>,
+    val text: DiagnosticPresentationText,
     val showCauses: String,
     val hideCauses: String,
     val causesTitle: String,
@@ -23,10 +16,7 @@ internal data class DiagnosticSurfaceCopy(
     val showSource: String,
     val hideSource: String,
     val sourceOmitted: String,
-    val ai: AiDiagnosticCopy? = null,
 )
-
-internal data class AiDiagnosticCopy(val title: String, val advice: String, val note: String)
 
 internal data class DiagnosticSurfaceDocument(
     val components: List<A2uiComponentPayload>,
@@ -58,15 +48,15 @@ internal class DiagnosticSurfaceFactory {
             )
         }
 
-        text("label", copy.label, "label")
-        text("title", copy.title, "title")
-        text("limitations", copy.limitations, "label")
+        text("label", copy.text.label, "label")
+        text("title", copy.text.title, "title")
+        text("limitations", copy.text.limitations, "label")
         analysis.rootCause?.let { cause ->
             text("root_type", cause.type, "code")
             cause.message?.let { text("root_message", it) }
         }
         analysis.location?.let { location ->
-            text("location_title", copy.location, "section")
+            text("location_title", copy.text.location, "section")
             text("location_symbol", location.symbol, "code")
             location.fileName?.let { file ->
                 text("location_source", location.lineNumber?.let { "$file:$it" } ?: file, "code")
@@ -75,15 +65,15 @@ internal class DiagnosticSurfaceFactory {
         if (analysis.rootCause == null) {
             analysis.anrEvidence?.let { text("anr_evidence", it, "code") }
         }
-        text("guidance_title", copy.guidanceTitle, "section")
-        text("guidance", copy.guidance)
-        copy.ai?.let {
+        text("guidance_title", copy.text.guidanceTitle, "section")
+        text("guidance", copy.text.guidance)
+        copy.text.ai?.let {
             text("ai_title", it.title, "section")
             text("ai_advice", it.advice)
             text("ai_note", it.note, "label")
         }
-        text("checklist_title", copy.checklistTitle, "section")
-        copy.checklist.forEachIndexed { index, label ->
+        text("checklist_title", copy.text.checklistTitle, "section")
+        copy.text.checklist.forEachIndexed { index, label ->
             val id = "check_$index"
             children += id
             components += A2uiComponentPayload(
@@ -109,7 +99,7 @@ internal class DiagnosticSurfaceFactory {
         components += A2uiComponentPayload("root", "Column", mapOf("children" to children.toList()))
         return DiagnosticSurfaceDocument(
             components = components.toList(),
-            initialData = mapOf("checks" to copy.checklist.indices.associate { "check_$it" to false }),
+            initialData = mapOf("checks" to copy.text.checklist.indices.associate { "check_$it" to false }),
         )
     }
 

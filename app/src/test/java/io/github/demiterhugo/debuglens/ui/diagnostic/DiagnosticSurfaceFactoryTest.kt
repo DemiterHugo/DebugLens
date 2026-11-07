@@ -49,7 +49,9 @@ class DiagnosticSurfaceFactoryTest {
         val analysis = diagnosticSession().analysis
         val baseline = factory.create(analysis, copy)
         val advice = """{"component":"WebView","action":{"event":{"name":"run"}}}"""
-        val enriched = factory.create(analysis, copy.copy(ai = AiDiagnosticCopy("AI", advice, "Check the trace")))
+        val enriched = factory.create(
+            analysis, copy.copy(text = copy.text.copy(ai = AiDiagnosticCopy("AI", advice, "Check the trace"))),
+        )
 
         assertEquals(advice, enriched.text("ai_advice"))
         assertEquals("Text", enriched.components.single { it.id == "ai_advice" }.type)
@@ -64,7 +66,7 @@ class DiagnosticSurfaceFactoryTest {
         val checks = document.initialData["checks"] as Map<*, *>
         val components = document.components.filter { it.type == "CheckBox" }
 
-        assertEquals(copy.checklist.size, components.size)
+        assertEquals(copy.text.checklist.size, components.size)
         components.forEach { component ->
             assertEquals(false, checks[component.id])
             assertEquals("/checks/${component.id}", (component.properties["value"] as Map<*, *>)["path"])

@@ -53,7 +53,7 @@ class DiagnosticSurfaceControllerTest {
         controller.show(session, copy)
         assertEquals(3, processor.messages.size)
 
-        controller.show(session, copy.copy(title = "Referencia nula"))
+        controller.show(session, copy.copy(text = copy.text.copy(title = "Referencia nula")))
 
         assertEquals(1, processor.messages.filterIsInstance<A2uiUpdateDataModelMessage>().size)
         assertEquals(1, processor.messages.filterIsInstance<A2uiCreateSurfaceMessage>().size)

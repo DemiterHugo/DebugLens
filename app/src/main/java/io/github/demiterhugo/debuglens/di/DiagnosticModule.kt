@@ -6,6 +6,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.demiterhugo.debuglens.data.repository.AndroidDiagnosticReportWriter
 import io.github.demiterhugo.debuglens.data.repository.AndroidLogcatCaptureRepository
 import io.github.demiterhugo.debuglens.data.repository.AndroidLogcatImportRepository
 import io.github.demiterhugo.debuglens.data.repository.DiagnosticHistoryStorage
@@ -13,6 +14,7 @@ import io.github.demiterhugo.debuglens.data.repository.LiteRtDiagnosticAiReposit
 import io.github.demiterhugo.debuglens.domain.repository.AiModelRepository
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticAdviceGenerator
 import io.github.demiterhugo.debuglens.domain.repository.DiagnosticHistoryRepository
+import io.github.demiterhugo.debuglens.domain.repository.DiagnosticReportWriter
 import io.github.demiterhugo.debuglens.domain.repository.LogcatCaptureRepository
 import io.github.demiterhugo.debuglens.domain.repository.LogcatImportRepository
 import io.github.demiterhugo.debuglens.domain.usecase.AnalyzeDiagnosticUseCase
@@ -46,6 +48,10 @@ object DiagnosticModule {
 
     @Provides
     fun provideLogcatCapture(): LogcatCaptureRepository = AndroidLogcatCaptureRepository()
+
+    @Provides
+    fun provideReportWriter(@ApplicationContext context: Context): DiagnosticReportWriter =
+        AndroidDiagnosticReportWriter(context.contentResolver)
 
     @Provides
     @Singleton

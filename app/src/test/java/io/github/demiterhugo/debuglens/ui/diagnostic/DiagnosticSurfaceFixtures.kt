@@ -11,10 +11,14 @@ internal fun diagnosticSession(
         "\tat example.Profile.render(Profile.kt:42)",
 ) = DiagnosticSession(id, (AnalyzeDiagnosticUseCase()(text) as DiagnosticResult.Success).analysis)
 
-internal fun diagnosticCopy() = DiagnosticSurfaceCopy(
+internal fun diagnosticText() = DiagnosticPresentationText(
     label = "Local analysis", title = "Null reference", limitations = "Check the code",
     location = "Location", guidanceTitle = "Review", guidance = "Inspect the value",
     checklistTitle = "Checklist", checklist = listOf("Inspect value", "Read trace", "Reproduce"),
+)
+
+internal fun diagnosticCopy() = DiagnosticSurfaceCopy(
+    text = diagnosticText(),
     showCauses = "Show causes", hideCauses = "Hide causes", causesTitle = "Cause chain",
     causesOmitted = "Only the deepest causes are shown", showSource = "Show source", hideSource = "Hide source",
     sourceOmitted = "Source preview truncated",

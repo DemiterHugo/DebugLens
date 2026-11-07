@@ -182,6 +182,27 @@ historial guarda el resultado local y permite volver a solicitar una sugerencia.
 La app incorpora la respuesta como texto al catálogo A2UI. La traza, los datos
 de diagnóstico y la inferencia permanecen en el dispositivo.
 
+## Exportar un diagnóstico
+
+Abre un diagnóstico nuevo o recupera uno del historial y pulsa **Exportar
+diagnóstico**. El informe de texto UTF-8 incluye la clasificación, la evidencia
+del fallo, la ubicación disponible y las comprobaciones recomendadas.
+
+La traza completa y la sugerencia de IA se incluyen solo si marcas sus
+opciones. La opción de IA aparece cuando el diagnóstico abierto tiene una
+sugerencia disponible. Los mensajes de excepción y las ubicaciones forman
+parte del informe, así que conviene revisar el archivo antes de adjuntarlo.
+
+Pulsa **Elegir carpeta** en el selector de Android. DebugLens pide al proveedor
+que cree un documento nuevo con el nombre sugerido `debuglens-diagnostico.txt`.
+En Android 11 o superior, elige una carpeta compatible, como Documentos.
+La raíz de Descargas queda fuera del selector de carpetas.
+
+El archivo guarda una copia del resultado mostrado cuando confirmaste las
+opciones. Mientras se guarda, puedes pulsar **Cancelar** y volver a exportar.
+Si falla o se cancela, DebugLens intenta eliminar el documento incompleto
+que creó para esa exportación.
+
 ## Presentación e inyección
 
 - `DebugLensApplication` inicia Hilt mediante `@HiltAndroidApp`.
