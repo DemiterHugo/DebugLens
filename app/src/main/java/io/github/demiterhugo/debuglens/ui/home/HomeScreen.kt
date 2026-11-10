@@ -29,8 +29,11 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,6 +124,7 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onCaptureLogcat = viewModel::captureLogcat,
         onCancelLogcatCapture = viewModel::cancelLogcatCapture,
         onOpenSession = viewModel::openSession,
+        onDeleteSession = viewModel::deleteHistorySession,
         onHistoryQueryChange = viewModel::updateHistoryQuery,
         onHistoryCategorySelected = viewModel::selectHistoryCategory,
         onResetHistoryFilter = viewModel::resetHistoryFilter,
@@ -186,6 +190,7 @@ internal fun HomeScreen(
     onCaptureLogcat: () -> Unit,
     onCancelLogcatCapture: () -> Unit,
     onOpenSession: (String) -> Unit,
+    onDeleteSession: (String) -> Unit,
     onHistoryQueryChange: (String) -> Unit,
     onHistoryCategorySelected: (DiagnosticCategory?) -> Unit,
     onResetHistoryFilter: () -> Unit,
@@ -205,6 +210,8 @@ internal fun HomeScreen(
     val resultRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
     val example = stringResource(R.string.example_stack_trace)
+    var sessionPendingDeletion by rememberSaveable { mutableStateOf<String?>(null) }
+    val canChangeHistory = !uiState.isInputBusy && !uiState.isHistoryMutating
     LaunchedEffect(uiState.selectedSession?.id) {
         if (uiState.selectedSession != null) {
             withFrameNanos { }
@@ -245,7 +252,7 @@ internal fun HomeScreen(
                 ) { Text(stringResource(R.string.action_load_example)) }
             }
             Column {
-                val canReadLogcat = !uiState.isInputBusy && !uiState.isClearingHistory
+                val canReadLogcat = !uiState.isInputBusy && !uiState.isHistoryMutating
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(
                         onClick = {
@@ -327,7 +334,7 @@ internal fun HomeScreen(
                         focusManager.clearFocus()
                         onAnalyze()
                     },
-                    enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
+                    enabled = !uiState.isInputBusy && !uiState.isHistoryMutating,
                     modifier = Modifier.testTag("analyze_input"),
                 ) {
                     Text(stringResource(if (uiState.isAnalyzing) R.string.action_analyzing else R.string.action_analyze))
@@ -346,6 +353,7 @@ internal fun HomeScreen(
                             HomeOperationError.ANALYSIS -> R.string.analysis_error
                             HomeOperationError.HISTORY_SAVE -> R.string.history_save_error
                             HomeOperationError.HISTORY_CLEAR -> R.string.history_clear_error
+                            HomeOperationError.HISTORY_DELETE -> R.string.history_delete_error
                         },
                     ),
                     color = MaterialTheme.colorScheme.error,
@@ -387,7 +395,7 @@ internal fun HomeScreen(
                 if (!uiState.historyFilter.isActive) {
                     TextButton(
                         onClick = onClearHistory,
-                        enabled = !uiState.isInputBusy && !uiState.isClearingHistory,
+                        enabled = canChangeHistory,
                         modifier = Modifier.testTag("clear_history"),
                     ) {
                         Text(stringResource(if (uiState.isClearingHistory) R.string.action_clearing_history else R.string.action_clear_history))
@@ -422,11 +430,48 @@ internal fun HomeScreen(
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            TextButton(
+                                onClick = {
+                                    keyboard?.hide()
+                                    focusManager.clearFocus()
+                                    sessionPendingDeletion = session.id
+                                },
+                                enabled = canChangeHistory,
+                                modifier = Modifier.align(Alignment.End).testTag("history_delete_entry"),
+                            ) {
+                                val label = if (uiState.deletingSessionId == session.id) R.string.history_deleting_entry
+                                else R.string.history_delete_entry
+                                Text(stringResource(label))
+                            }
                         }
                     }
                 }
             }
         }
+    }
+    val pendingId = sessionPendingDeletion
+    if (pendingId != null && uiState.recentSessions.any { it.id == pendingId }) {
+        AlertDialog(
+            onDismissRequest = { sessionPendingDeletion = null },
+            title = { Text(stringResource(R.string.history_delete_title)) },
+            text = { Text(stringResource(R.string.history_delete_description)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sessionPendingDeletion = null
+                        onDeleteSession(pendingId)
+                    },
+                    enabled = canChangeHistory,
+                    modifier = Modifier.testTag("history_confirm_delete"),
+                ) { Text(stringResource(R.string.history_delete_confirm)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { sessionPendingDeletion = null },
+                    modifier = Modifier.testTag("history_cancel_delete"),
+                ) { Text(stringResource(R.string.history_delete_cancel)) }
+            },
+        )
     }
     if (uiState.isAboutVisible) {
         AlertDialog(
@@ -477,6 +522,7 @@ private fun HomeScreenPreview() {
             onCaptureLogcat = {},
             onCancelLogcatCapture = {},
             onOpenSession = {},
+            onDeleteSession = {},
             onHistoryQueryChange = {},
             onHistoryCategorySelected = {},
             onResetHistoryFilter = {},

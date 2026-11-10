@@ -75,6 +75,9 @@ entre dispositivos mediante las reglas de Android.
 En **Análisis recientes**, busca mensajes, tipos de excepción o archivos en el
 fragmento completo de cada diagnóstico guardado. La búsqueda admite varios
 términos e ignora mayúsculas y tildes. Puedes combinarla con una categoría.
+En cada entrada, **Eliminar del historial** pide confirmación y retira solo
+ese diagnóstico. Si el resultado sigue abierto, puedes consultarlo hasta salir
+de él.
 **Restablecer filtros** recupera la lista completa, desde la que puedes borrar
 el historial.
 

@@ -140,7 +140,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun readLogcat(source: LogcatSource, read: suspend () -> LogcatIncidentResult) {
-        if (_uiState.value.isInputBusy || _uiState.value.isClearingHistory) return
+        if (_uiState.value.isInputBusy || _uiState.value.isHistoryMutating) return
         val revision = inputRevision
         _uiState.update { it.copy(logcatReadInProgress = source, logcatReadError = null) }
         inputJob = viewModelScope.launch {
@@ -175,7 +175,7 @@ class HomeViewModel @Inject constructor(
     }
 
     fun analyze() {
-        if (_uiState.value.isInputBusy || _uiState.value.isClearingHistory) return
+        if (_uiState.value.isInputBusy || _uiState.value.isHistoryMutating) return
         val input = _uiState.value.input
         beginAnalysis()
         inputJob = viewModelScope.launch { analyzeInput(input) }
@@ -245,23 +245,33 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun clearHistory() {
-        if (_uiState.value.isClearingHistory || _uiState.value.isInputBusy) return
+    fun clearHistory() = removeFromHistory(sessionId = null)
+
+    fun deleteHistorySession(sessionId: String) {
+        if (_uiState.value.recentSessions.any { it.id == sessionId }) removeFromHistory(sessionId)
+    }
+
+    private fun removeFromHistory(sessionId: String?) {
+        if (_uiState.value.isHistoryMutating || _uiState.value.isInputBusy) return
         _uiState.update {
             it.copy(
-                isClearingHistory = true,
-                operationError = it.operationError.takeUnless { error -> error == HomeOperationError.HISTORY_CLEAR },
+                isClearingHistory = sessionId == null,
+                deletingSessionId = sessionId,
+                operationError = it.operationError.takeUnless { error ->
+                    error == HomeOperationError.HISTORY_CLEAR || error == HomeOperationError.HISTORY_DELETE
+                },
             )
         }
         viewModelScope.launch {
             try {
-                historyRepository.clear()
+                if (sessionId == null) historyRepository.clear() else historyRepository.delete(sessionId)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                _uiState.update { it.copy(operationError = HomeOperationError.HISTORY_CLEAR) }
+                val error = if (sessionId == null) HomeOperationError.HISTORY_CLEAR else HomeOperationError.HISTORY_DELETE
+                _uiState.update { it.copy(operationError = error) }
             } finally {
-                _uiState.update { it.copy(isClearingHistory = false) }
+                _uiState.update { it.copy(isClearingHistory = false, deletingSessionId = null) }
             }
         }
     }

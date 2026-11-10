@@ -30,6 +30,8 @@ internal class RoomDiagnosticHistoryRepository(private val dao: DiagnosticHistor
         return dao.save(candidate.session, candidate.causes, CAPACITY, reuseMatchingInput).toDomain()
     }
 
+    override suspend fun delete(sessionId: String) = dao.delete(sessionId)
+
     override suspend fun clear() = dao.clear()
 
     companion object {

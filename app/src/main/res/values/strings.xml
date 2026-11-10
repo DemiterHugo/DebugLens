@@ -54,6 +54,7 @@
     <string name="analysis_error">No se ha podido completar el análisis. Vuelve a intentarlo.</string>
     <string name="history_save_error">El diagnóstico está disponible, pero no se ha podido guardar en el historial.</string>
     <string name="history_clear_error">No se ha podido borrar el historial. Vuelve a intentarlo.</string>
+    <string name="history_delete_error">No se ha podido eliminar el diagnóstico del historial. Vuelve a intentarlo.</string>
     <string name="history_load_error">No se ha podido cargar el historial guardado.</string>
     <string name="history_loading">Cargando historial…</string>
     <string name="analysis_title">Resultado del análisis local</string>
@@ -108,6 +109,12 @@
     <string name="history_selected_category">Categoría · %1$s</string>
     <string name="history_reset_filters">Restablecer filtros</string>
     <string name="history_no_matches">No hay diagnósticos que coincidan con los filtros.</string>
+    <string name="history_delete_entry">Eliminar del historial</string>
+    <string name="history_deleting_entry">Eliminando…</string>
+    <string name="history_delete_title">¿Eliminar este diagnóstico?</string>
+    <string name="history_delete_description">Se retirará esta entrada del historial. Si el diagnóstico está abierto, seguirá disponible en esta pantalla.</string>
+    <string name="history_delete_confirm">Eliminar</string>
+    <string name="history_delete_cancel">Cancelar</string>
     <plurals name="history_matches">
         <item quantity="one">%1$d diagnóstico</item>
         <item quantity="many">%1$d diagnósticos</item>

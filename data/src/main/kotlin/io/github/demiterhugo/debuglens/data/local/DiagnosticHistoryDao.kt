@@ -44,6 +44,9 @@ internal abstract class DiagnosticHistoryDao {
         return StoredDiagnosticSession(session, causes)
     }
 
+    @Query("DELETE FROM diagnostic_sessions WHERE id = :sessionId")
+    abstract suspend fun delete(sessionId: String)
+
     @Query("DELETE FROM diagnostic_sessions")
     abstract suspend fun clear()
 }

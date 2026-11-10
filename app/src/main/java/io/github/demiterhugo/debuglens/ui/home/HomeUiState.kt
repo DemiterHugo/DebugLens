@@ -19,11 +19,13 @@ data class HomeUiState(
     val isHistorySearching: Boolean = false,
     val historyLoadError: Boolean = false,
     val isClearingHistory: Boolean = false,
+    val deletingSessionId: String? = null,
     val operationError: HomeOperationError? = null,
     val isAboutVisible: Boolean = false,
 ) {
     val analysis get() = selectedSession?.analysis
     val isInputBusy get() = isAnalyzing || logcatReadInProgress != null
+    val isHistoryMutating get() = isClearingHistory || deletingSessionId != null
 }
 
 enum class LogcatSource { DOCUMENT, DEVICE }
@@ -34,4 +36,5 @@ enum class HomeOperationError {
     ANALYSIS,
     HISTORY_SAVE,
     HISTORY_CLEAR,
+    HISTORY_DELETE,
 }

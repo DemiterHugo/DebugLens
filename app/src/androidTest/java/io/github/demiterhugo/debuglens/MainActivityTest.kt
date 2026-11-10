@@ -149,6 +149,29 @@ class MainActivityTest {
     }
 
     @Test
+    fun deletesOnlyTheConfirmedHistoryEntry() {
+        analyze("java.lang.NullPointerException: remove this")
+        composeRule.onNodeWithTag("clear_input").performScrollTo().performClick()
+        analyze("java.lang.IllegalStateException: keep this")
+        composeRule.onNodeWithTag("history_query").performScrollTo().performTextInput("remove this")
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_delete_entry").fetchSemanticsNodes().size == 1
+        }
+
+        composeRule.onNodeWithTag("history_delete_entry").performScrollTo().performClick()
+        composeRule.onNodeWithTag("history_cancel_delete").performClick()
+        composeRule.onNodeWithTag("history_entry").assertExists()
+        composeRule.onNodeWithTag("history_delete_entry").performScrollTo().performClick()
+        composeRule.onNodeWithTag("history_confirm_delete").performClick()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_no_matches").fetchSemanticsNodes().isNotEmpty()
+        }
+
+        composeRule.onNodeWithTag("history_reset_filters").performScrollTo().performClick()
+        composeRule.onNode(hasTestTag("history_entry") and hasText("keep this")).assertExists()
+    }
+
+    @Test
     fun unknownTextIsPresentedAsUnclassified() {
         analyze("La pantalla se queda en blanco sin una traza")
         val title = composeRule.activity.getString(R.string.category_unknown)

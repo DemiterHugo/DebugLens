@@ -93,6 +93,16 @@ class RoomDiagnosticHistoryRepositoryTest {
     }
 
     @Test
+    fun deletingByIdRemovesOnlyThatSessionAndItsCauses() = runBlocking {
+        val kept = repository.save(analysis())
+        val removed = repository.save(analysis())
+        repository.delete(removed.id)
+        repository.delete(removed.id)
+        assertEquals(listOf(kept), snapshot())
+        assertEquals(2L, causeCount())
+    }
+
+    @Test
     fun failedCauseInsertionRollsBackTheWholeSessionAndLeavesTheDatabaseUsable() = runBlocking {
         val stored = DiagnosticSession("invalid-batch", analysis()).toStored()
         val cause = stored.causes.first()

@@ -313,6 +313,33 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun deletingOneSessionCanBeRetriedAndUpdatesTheFilteredHistory() = runTest {
+        val analyzer = AnalyzeDiagnosticUseCase()
+        val kept = repository.save((analyzer("IllegalStateException: keep") as DiagnosticResult.Success).analysis)
+        val removed = repository.save((analyzer("IllegalStateException: remove") as DiagnosticResult.Success).analysis)
+        val model = createModel()
+        advanceUntilIdle()
+        model.openSession(removed.id)
+        model.updateHistoryQuery("remove")
+        advanceUntilIdle()
+
+        repository.beforeDelete = { error("Disk unavailable") }
+        model.deleteHistorySession(removed.id)
+        advanceUntilIdle()
+        assertEquals(HomeOperationError.HISTORY_DELETE, model.uiState.value.operationError)
+        assertEquals(listOf(removed), model.uiState.value.matchingSessions)
+        assertFalse(model.uiState.value.isHistoryMutating)
+
+        repository.beforeDelete = {}
+        model.deleteHistorySession(removed.id)
+        advanceUntilIdle()
+        assertEquals(listOf(kept), model.uiState.value.recentSessions)
+        assertTrue(model.uiState.value.matchingSessions.isEmpty())
+        assertEquals(removed, model.uiState.value.selectedSession)
+        assertNull(model.uiState.value.operationError)
+    }
+
+    @Test
     fun successiveUnsavedResultsHaveDifferentSurfaceIdentities() = runTest {
         repository.beforeSave = { error("Disk unavailable") }
         val model = createModel()
@@ -518,6 +545,7 @@ class HomeViewModelTest {
         var failObservation = false
         var beforeObservation: suspend () -> Unit = {}
         var beforeClear: suspend () -> Unit = {}
+        var beforeDelete: suspend () -> Unit = {}
         var clearCalls = 0
 
         override fun observeSessions(): Flow<List<DiagnosticSession>> =
@@ -537,6 +565,11 @@ class HomeViewModelTest {
 
         override suspend fun saveOrReuse(analysis: DiagnosticAnalysis): DiagnosticSession =
             sessions.value.firstOrNull { it.analysis.input == analysis.input } ?: save(analysis)
+
+        override suspend fun delete(sessionId: String) {
+            beforeDelete()
+            sessions.value = sessions.value.filterNot { it.id == sessionId }
+        }
 
         override suspend fun clear() {
             clearCalls++

@@ -14,5 +14,8 @@ interface DiagnosticHistoryRepository {
     /** Atomically returns the newest session with the same normalized input or saves the analysis. */
     suspend fun saveOrReuse(analysis: DiagnosticAnalysis): DiagnosticSession
 
+    /** Removes the session by ID. A missing session is already deleted. */
+    suspend fun delete(sessionId: String)
+
     suspend fun clear()
 }
