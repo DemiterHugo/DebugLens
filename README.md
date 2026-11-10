@@ -199,6 +199,9 @@ opciones. La opción de IA aparece cuando el diagnóstico abierto tiene una
 sugerencia disponible. Los mensajes de excepción y las ubicaciones forman
 parte del informe, así que conviene revisar el archivo antes de adjuntarlo.
 
+Pulsa **Compartir texto** para abrir el selector de Android con el informe y
+elegir la aplicación de destino. Las mismas opciones controlan qué se incluye.
+
 Pulsa **Elegir carpeta** en el selector de Android. DebugLens pide al proveedor
 que cree un documento nuevo con el nombre sugerido `debuglens-diagnostico.txt`.
 En Android 11 o superior, elige una carpeta compatible, como Documentos.

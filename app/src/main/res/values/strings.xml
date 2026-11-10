@@ -66,6 +66,8 @@
     <string name="export_include_trace">Incluir la traza original</string>
     <string name="export_include_advice">Incluir la sugerencia de IA</string>
     <string name="export_choose_destination">Elegir carpeta</string>
+    <string name="export_share_text">Compartir texto</string>
+    <string name="export_share_unavailable">No se pudo abrir el selector para compartir el informe.</string>
     <string name="export_cancel">Cancelar</string>
     <string name="export_writing">Guardando informe…</string>
     <string name="export_saved">Informe guardado.</string>

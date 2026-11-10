@@ -1,5 +1,9 @@
 package io.github.demiterhugo.debuglens
 
+import android.app.Activity
+import android.app.Instrumentation
+import android.content.Intent
+import android.os.Build
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsOff
@@ -18,9 +22,15 @@ import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.state.ToggleableState
+import androidx.core.content.IntentCompat
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.platform.app.InstrumentationRegistry
+import java.util.concurrent.atomic.AtomicReference
 import org.junit.Before
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.AssumptionViolatedException
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -164,6 +174,50 @@ class MainActivityTest {
 
         composeRule.onNodeWithTag("export_diagnostic").performScrollTo().performClick()
         composeRule.onNodeWithTag("export_include_trace").assertIsOff()
+    }
+
+    @Test
+    fun sharesTheReportAsPlainTextAndIncludesTheFullTraceOnlyWhenSelected() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            throw AssumptionViolatedException("Intercepting chooser intents requires API 26")
+        }
+        val trace = "java.lang.IllegalStateException: share example\n" +
+            "\tat example.Screen.render(Screen.kt:42)\n" +
+            "\tat example.Caller.open(Caller.kt:17)"
+        analyze(trace)
+
+        val chooser = AtomicReference<Intent>()
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val monitor = object : Instrumentation.ActivityMonitor() {
+            override fun onStartActivity(intent: Intent): Instrumentation.ActivityResult? {
+                if (intent.action != Intent.ACTION_CHOOSER) return null
+                chooser.set(intent)
+                return Instrumentation.ActivityResult(Activity.RESULT_CANCELED, null)
+            }
+        }
+        instrumentation.addMonitor(monitor)
+        try {
+            fun shareReport(): String {
+                composeRule.onNodeWithTag("share_diagnostic_text").performClick()
+                val launch = checkNotNull(chooser.getAndSet(null))
+                val send = checkNotNull(IntentCompat.getParcelableExtra(launch, Intent.EXTRA_INTENT, Intent::class.java))
+                assertEquals(Intent.ACTION_SEND, send.action)
+                assertEquals("text/plain", send.type)
+                assertFalse(send.hasExtra(Intent.EXTRA_STREAM))
+                return checkNotNull(send.getStringExtra(Intent.EXTRA_TEXT))
+            }
+
+            composeRule.onNodeWithTag("export_diagnostic").performScrollTo().performClick()
+            val defaultReport = shareReport()
+            assertTrue(defaultReport.contains("share example"))
+            assertFalse(defaultReport.contains("Caller.kt:17"))
+
+            composeRule.onNodeWithTag("export_diagnostic").performScrollTo().performClick()
+            composeRule.onNodeWithTag("export_include_trace").assertIsOff().performClick()
+            assertTrue(shareReport().contains(trace))
+        } finally {
+            instrumentation.removeMonitor(monitor)
+        }
     }
 
     private fun analyze(input: String) {

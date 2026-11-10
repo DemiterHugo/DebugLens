@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -22,28 +23,47 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import io.github.demiterhugo.debuglens.R
 
+internal enum class DiagnosticReportDestination { FOLDER, SHARE_TEXT }
+
 @Composable
 internal fun DiagnosticExportAction(
     sessionId: String,
     hasAdvice: Boolean,
     status: DiagnosticExportStatus,
-    onExport: (includeTrace: Boolean, includeAdvice: Boolean) -> Unit,
-) {
-    var showOptions by rememberSaveable(sessionId) { mutableStateOf(false) }
+    onConfirm: (destination: DiagnosticReportDestination, includeTrace: Boolean, includeAdvice: Boolean) -> Unit,
+) = key(sessionId) {
+    var showOptions by rememberSaveable { mutableStateOf(false) }
     TextButton(
         onClick = { showOptions = true },
-        enabled = !status.isBusy,
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).testTag("export_diagnostic"),
     ) {
-        val label = if (status == DiagnosticExportStatus.WRITING) R.string.export_writing else R.string.export_title
-        Text(stringResource(label))
+        Text(stringResource(R.string.export_title))
     }
-    if (!showOptions) return
+    if (showOptions) {
+        DiagnosticReportOptions(
+            hasAdvice = hasAdvice,
+            canSaveFile = !status.isBusy,
+            onDismiss = { showOptions = false },
+            onConfirm = onConfirm,
+        )
+    }
+}
 
-    var includeTrace by rememberSaveable(sessionId) { mutableStateOf(false) }
-    var includeAdvice by rememberSaveable(sessionId) { mutableStateOf(false) }
+@Composable
+private fun DiagnosticReportOptions(
+    hasAdvice: Boolean,
+    canSaveFile: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (DiagnosticReportDestination, Boolean, Boolean) -> Unit,
+) {
+    var includeTrace by rememberSaveable { mutableStateOf(false) }
+    var includeAdvice by rememberSaveable { mutableStateOf(false) }
+    fun confirm(destination: DiagnosticReportDestination) {
+        onDismiss()
+        onConfirm(destination, includeTrace, hasAdvice && includeAdvice)
+    }
     AlertDialog(
-        onDismissRequest = { showOptions = false },
+        onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.export_title)) },
         text = {
             Column {
@@ -64,15 +84,22 @@ internal fun DiagnosticExportAction(
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                showOptions = false
-                onExport(includeTrace, hasAdvice && includeAdvice)
-            }) {
+            TextButton(
+                onClick = { confirm(DiagnosticReportDestination.SHARE_TEXT) },
+                modifier = Modifier.testTag("share_diagnostic_text"),
+            ) {
+                Text(stringResource(R.string.export_share_text))
+            }
+            TextButton(
+                onClick = { confirm(DiagnosticReportDestination.FOLDER) },
+                enabled = canSaveFile,
+                modifier = Modifier.testTag("export_choose_folder"),
+            ) {
                 Text(stringResource(R.string.export_choose_destination))
             }
         },
         dismissButton = {
-            TextButton(onClick = { showOptions = false }) { Text(stringResource(R.string.export_cancel)) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.export_cancel)) }
         },
     )
 }

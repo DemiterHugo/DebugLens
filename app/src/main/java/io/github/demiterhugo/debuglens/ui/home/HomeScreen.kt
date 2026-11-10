@@ -1,6 +1,7 @@
 package io.github.demiterhugo.debuglens.ui.home
 
 import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +34,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
@@ -53,6 +55,7 @@ import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticAiViewModel
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticExportAction
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticExportStatus
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticExportViewModel
+import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticReportDestination
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticReportLabels
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceState
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceViewModel
@@ -81,8 +84,11 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         exportViewModel.onDestinationSelected(uri?.toString())
     }
     val snackbar = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val exportProgress = stringResource(R.string.export_writing)
     val cancelExport = stringResource(R.string.export_cancel)
+    val shareUnavailable = stringResource(R.string.export_share_unavailable)
     val exportMessage = when (exportStatus) {
         DiagnosticExportStatus.SAVED -> stringResource(R.string.export_saved)
         DiagnosticExportStatus.CANCELLED -> stringResource(R.string.export_cancelled)
@@ -133,13 +139,26 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
                     anr = stringResource(R.string.export_report_anr),
                     trace = stringResource(R.string.export_report_trace),
                 )
-                DiagnosticExportAction(session.id, text.ai != null, exportStatus) { includeTrace, includeAdvice ->
+                DiagnosticExportAction(session.id, text.ai != null, exportStatus) { destination, includeTrace, includeAdvice ->
                     val report = formatDiagnosticReport(session.analysis, text, labels, includeTrace, includeAdvice)
-                    if (exportViewModel.prepare(report)) {
-                        try {
-                            exportPicker.launch(null)
-                        } catch (_: ActivityNotFoundException) {
-                            exportViewModel.onPickerUnavailable()
+                    when (destination) {
+                        DiagnosticReportDestination.FOLDER -> if (exportViewModel.prepare(report)) {
+                            try {
+                                exportPicker.launch(null)
+                            } catch (_: ActivityNotFoundException) {
+                                exportViewModel.onPickerUnavailable()
+                            }
+                        }
+                        DiagnosticReportDestination.SHARE_TEXT -> {
+                            val send = Intent(Intent.ACTION_SEND)
+                                .setType("text/plain")
+                                .putExtra(Intent.EXTRA_TITLE, labels.appName)
+                                .putExtra(Intent.EXTRA_TEXT, report)
+                            try {
+                                context.startActivity(Intent.createChooser(send, null))
+                            } catch (_: ActivityNotFoundException) {
+                                scope.launch { snackbar.showSnackbar(shareUnavailable) }
+                            }
                         }
                     }
                 }
