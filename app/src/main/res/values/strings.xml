@@ -109,6 +109,7 @@
     <string name="history_selected_category">Categoría · %1$s</string>
     <string name="history_reset_filters">Restablecer filtros</string>
     <string name="history_no_matches">No hay diagnósticos que coincidan con los filtros.</string>
+    <string name="history_open_entry">Abrir diagnóstico</string>
     <string name="history_delete_entry">Eliminar del historial</string>
     <string name="history_deleting_entry">Eliminando…</string>
     <string name="history_delete_title">¿Eliminar este diagnóstico?</string>

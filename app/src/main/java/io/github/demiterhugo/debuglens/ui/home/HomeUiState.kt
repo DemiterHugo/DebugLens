@@ -12,6 +12,7 @@ data class HomeUiState(
     val logcatReadInProgress: LogcatSource? = null,
     val logcatReadError: LogcatReadError? = null,
     val selectedSession: DiagnosticSession? = null,
+    val surfaceRevision: Long = 0L,
     val recentSessions: List<DiagnosticSession> = emptyList(),
     val matchingSessions: List<DiagnosticSession> = emptyList(),
     val historyFilter: DiagnosticHistoryFilter = DiagnosticHistoryFilter(),

@@ -113,8 +113,12 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
     val advice = aiState.advice.takeIf { aiState.sessionId == session?.id }
     val text = session?.let { diagnosticText(it.analysis.category, advice) }
     val copy = if (session != null && text != null) diagnosticSurfaceCopy(session.analysis, text) else null
-    LaunchedEffect(session, copy) {
-        if (session != null && copy != null) surfaceViewModel.show(session, copy) else surfaceViewModel.clear()
+    LaunchedEffect(uiState.surfaceRevision, session, copy) {
+        if (session != null && copy != null) {
+            surfaceViewModel.show(session, copy, uiState.surfaceRevision)
+        } else {
+            surfaceViewModel.clear(uiState.surfaceRevision)
+        }
     }
     HomeScreen(
         uiState = uiState,
@@ -123,7 +127,7 @@ fun HomeRoute(modifier: Modifier = Modifier, viewModel: HomeViewModel = hiltView
         onImportLogcat = { logcatPicker.launch(arrayOf("text/*", "application/octet-stream")) },
         onCaptureLogcat = viewModel::captureLogcat,
         onCancelLogcatCapture = viewModel::cancelLogcatCapture,
-        onOpenSession = viewModel::openSession,
+        onOpenSession = { viewModel.openSession(it) },
         onDeleteSession = viewModel::deleteHistorySession,
         onHistoryQueryChange = viewModel::updateHistoryQuery,
         onHistoryCategorySelected = viewModel::selectHistoryCategory,
@@ -189,7 +193,7 @@ internal fun HomeScreen(
     onImportLogcat: () -> Unit,
     onCaptureLogcat: () -> Unit,
     onCancelLogcatCapture: () -> Unit,
-    onOpenSession: (String) -> Unit,
+    onOpenSession: (DiagnosticSession) -> Unit,
     onDeleteSession: (String) -> Unit,
     onHistoryQueryChange: (String) -> Unit,
     onHistoryCategorySelected: (DiagnosticCategory?) -> Unit,
@@ -406,13 +410,6 @@ internal fun HomeScreen(
                 }
                 uiState.matchingSessions.forEach { session ->
                     Card(
-                        onClick = {
-                            keyboard?.hide()
-                            focusManager.clearFocus()
-                            val alreadyDisplayed = uiState.selectedSession?.id == session.id
-                            onOpenSession(session.id)
-                            if (alreadyDisplayed) scope.launch { resultRequester.bringIntoView() }
-                        },
                         modifier = Modifier.fillMaxWidth().testTag("history_entry"),
                     ) {
                         Column(
@@ -430,6 +427,18 @@ internal fun HomeScreen(
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            TextButton(
+                                onClick = {
+                                    keyboard?.hide()
+                                    focusManager.clearFocus()
+                                    val alreadyDisplayed = uiState.selectedSession?.id == session.id
+                                    onOpenSession(session)
+                                    if (alreadyDisplayed) scope.launch { resultRequester.bringIntoView() }
+                                },
+                                modifier = Modifier.align(Alignment.End).testTag("history_open_entry"),
+                            ) {
+                                Text(stringResource(R.string.history_open_entry))
+                            }
                             TextButton(
                                 onClick = {
                                     keyboard?.hide()

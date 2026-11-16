@@ -45,6 +45,7 @@ internal class DiagnosticSurfaceController(
     private var processor = processorFactory()
     private var processorScope = createProcessorScope()
     private var processorFailed = false
+    private var latestRequestId = Long.MIN_VALUE
 
     init {
         startProcessing()
@@ -88,7 +89,9 @@ internal class DiagnosticSurfaceController(
         }
     }
 
-    fun show(session: DiagnosticSession, copy: DiagnosticSurfaceCopy) {
+    fun show(session: DiagnosticSession, copy: DiagnosticSurfaceCopy, requestId: Long = 0L) {
+        if (requestId < latestRequestId) return
+        latestRequestId = requestId
         if (currentSession?.id == session.id && currentSession?.analysis == session.analysis) {
             if (currentCopy != copy) {
                 currentCopy = copy
@@ -99,7 +102,9 @@ internal class DiagnosticSurfaceController(
         startSurface(session, copy)
     }
 
-    fun clear() {
+    fun clear(requestId: Long = 0L) {
+        if (requestId < latestRequestId) return
+        latestRequestId = requestId
         surfaceId?.let { processor.processMessage(A2uiDeleteSurfaceMessage(it)) }
         surfaceId = null
         currentSession = null

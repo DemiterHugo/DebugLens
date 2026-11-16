@@ -9,6 +9,7 @@ import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasAnyDescendant
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
@@ -106,7 +107,11 @@ class MainActivityTest {
         composeRule.onNodeWithTag("clear_input").performScrollTo().performClick()
         composeRule.onNodeWithTag("analysis_result").assertDoesNotExist()
 
-        composeRule.onAllNodesWithTag("history_entry")[0].performScrollTo().performClick()
+        composeRule.onNodeWithTag("history_open_entry").performScrollTo().performClick()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("analysis_result").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithTag("a2ui_surface_error").assertDoesNotExist()
         waitForDiagnosticSurface()
         composeRule.onNodeWithTag("analysis_heading").assertIsDisplayed()
         composeRule.onNodeWithTag("diagnostic_input").performScrollTo().assertTextContains(input)
@@ -126,7 +131,7 @@ class MainActivityTest {
         val first = "java.lang.NullPointerException: café"
         analyze(first)
         composeRule.onNodeWithTag("clear_input").performScrollTo().performClick()
-        analyze("java.lang.IllegalStateException: café")
+        analyze("java.lang.IllegalStateException: café", minimumHistoryEntries = 2)
 
         composeRule.onNodeWithTag("history_query").performScrollTo().performTextInput("CAFE")
         composeRule.onNodeWithTag("history_category").performScrollTo().performClick()
@@ -135,7 +140,7 @@ class MainActivityTest {
             composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().size == 1
         }
         composeRule.onNodeWithTag("clear_history").assertDoesNotExist()
-        composeRule.onNodeWithTag("history_entry").performScrollTo().performClick()
+        composeRule.onNodeWithTag("history_open_entry").performScrollTo().performClick()
         composeRule.onNodeWithTag("diagnostic_input").performScrollTo().assertTextContains(first)
 
         composeRule.onNodeWithTag("history_query").performScrollTo().performTextReplacement("sin coincidencia")
@@ -152,7 +157,7 @@ class MainActivityTest {
     fun deletesOnlyTheConfirmedHistoryEntry() {
         analyze("java.lang.NullPointerException: remove this")
         composeRule.onNodeWithTag("clear_input").performScrollTo().performClick()
-        analyze("java.lang.IllegalStateException: keep this")
+        analyze("java.lang.IllegalStateException: keep this", minimumHistoryEntries = 2)
         composeRule.onNodeWithTag("history_query").performScrollTo().performTextInput("remove this")
         composeRule.waitUntil(10_000) {
             composeRule.onAllNodesWithTag("history_delete_entry").fetchSemanticsNodes().size == 1
@@ -168,7 +173,15 @@ class MainActivityTest {
         }
 
         composeRule.onNodeWithTag("history_reset_filters").performScrollTo().performClick()
-        composeRule.onNode(hasTestTag("history_entry") and hasText("keep this")).assertExists()
+        composeRule.onNode(hasTestTag("history_entry") and hasAnyDescendant(hasText("keep this"))).assertExists()
+
+        composeRule.activityRule.scenario.recreate()
+        composeRule.waitUntil(10_000) {
+            composeRule.onAllNodesWithTag("history_loading").fetchSemanticsNodes().isEmpty() &&
+                composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().size == 1
+        }
+        composeRule.onNode(hasTestTag("history_entry") and hasAnyDescendant(hasText("keep this"))).assertExists()
+        composeRule.onNode(hasTestTag("history_entry") and hasAnyDescendant(hasText("remove this"))).assertDoesNotExist()
     }
 
     @Test
@@ -243,10 +256,10 @@ class MainActivityTest {
         }
     }
 
-    private fun analyze(input: String) {
+    private fun analyze(input: String, minimumHistoryEntries: Int = 1) {
         composeRule.onNodeWithTag("diagnostic_input").performScrollTo().performTextInput(input)
         composeRule.onNodeWithTag("analyze_input").performScrollTo().performClick()
-        waitForDiagnosticSurface()
+        waitForDiagnosticSurface(minimumHistoryEntries)
     }
 
     @Test
@@ -309,10 +322,10 @@ class MainActivityTest {
         composeRule.onAllNodesWithTag("diagnostic_checkbox")[0].performScrollTo().assertIsOff()
     }
 
-    private fun waitForDiagnosticSurface() {
+    private fun waitForDiagnosticSurface(minimumHistoryEntries: Int = 1) {
         composeRule.waitUntil(timeoutMillis = 10_000) {
             composeRule.onAllNodesWithTag("a2ui_surface_ready").fetchSemanticsNodes().isNotEmpty() &&
-                composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().isNotEmpty()
+                composeRule.onAllNodesWithTag("history_entry").fetchSemanticsNodes().size >= minimumHistoryEntries
         }
     }
 }

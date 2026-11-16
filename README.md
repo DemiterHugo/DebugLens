@@ -279,6 +279,21 @@ Configurar el SDK local en `local.properties`, que está excluido de Git.
 
 ## Verificación
 
+En macOS o Linux, usa un JDK 17 como `JAVA_HOME` y configura
+`ANDROID_SDK_ROOT` con un SDK que incluya la plataforma Android 37.1 (además
+de las herramientas de compilación). El wrapper es ejecutable directamente:
+
+```bash
+export JAVA_HOME=/ruta/al/jdk-17
+export ANDROID_SDK_ROOT=/ruta/al/android-sdk
+./gradlew :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :data:assembleDebugAndroidTest test lint --max-workers=1 --console=plain
+./gradlew :data:connectedDebugAndroidTest :app:connectedDebugAndroidTest --max-workers=1 --console=plain
+```
+
+La segunda orden necesita un dispositivo o emulador conectado. El daemon de
+Gradle conserva la selección de JDK 25 del proyecto y puede resolver ese
+toolchain si está disponible en la configuración local.
+
 Desde Windows, con un JDK compatible disponible para el wrapper:
 
 ```powershell
@@ -309,3 +324,9 @@ persistencia al cerrar y reabrir la base, borrado duradero, retención, eliminac
 de causas huérfanas, rollback, emisiones de Flow e inserciones concurrentes.
 Las pruebas de captura comprueban la lectura del subproceso, el fallo del
 comando y su terminación al cancelar.
+
+El workflow de GitHub Actions en `.github/workflows/ci.yml` ejecuta en cada push
+y pull request la compilación debug/release, las pruebas unitarias de los tres
+módulos y `lintDebug`. También conserva los APK y los informes como artefactos.
+Las pruebas instrumentadas siguen necesitando un dispositivo o un job explícito
+con emulador Android.

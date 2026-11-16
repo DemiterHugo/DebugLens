@@ -44,6 +44,7 @@ class HomeViewModel @Inject constructor(
     private var historyJob: Job? = null
     private var historySearchJob: Job? = null
     private var historySearch = DiagnosticHistorySearch(emptyList())
+    private var historySearchSessions: List<DiagnosticSession> = emptyList()
     private var inputRevision = 0L
 
     init {
@@ -61,6 +62,7 @@ class HomeViewModel @Inject constructor(
             try {
                 historyRepository.observeSessions().collectLatest { sessions ->
                     historySearch = withContext(analysisDispatcher) { DiagnosticHistorySearch(sessions) }
+                    historySearchSessions = sessions
                     applyHistoryFilter(_uiState.value.historyFilter, sessions)
                     _uiState.update { it.copy(isHistoryLoading = false) }
                 }
@@ -100,7 +102,11 @@ class HomeViewModel @Inject constructor(
         }
         if (!needsSearch) return
 
-        val search = historySearch
+        val search = if (historySearchSessions == sessions) {
+            historySearch
+        } else {
+            DiagnosticHistorySearch(sessions)
+        }
         historySearchJob = viewModelScope.launch {
             val matches = withContext(analysisDispatcher) { search.find(filter) }
             ensureActive()
@@ -119,6 +125,7 @@ class HomeViewModel @Inject constructor(
                 input = input,
                 inputError = null,
                 selectedSession = null,
+                surfaceRevision = it.surfaceRevision + 1,
                 operationError = null,
                 isAnalyzing = false,
                 logcatReadInProgress = null,
@@ -187,6 +194,7 @@ class HomeViewModel @Inject constructor(
                 isAnalyzing = true,
                 inputError = null,
                 selectedSession = null,
+                surfaceRevision = it.surfaceRevision + 1,
                 operationError = null,
                 logcatReadError = null,
             )
@@ -230,12 +238,20 @@ class HomeViewModel @Inject constructor(
     }
 
     fun openSession(id: String) {
-        val session = _uiState.value.recentSessions.firstOrNull { it.id == id } ?: return
+        val state = _uiState.value
+        val session = state.matchingSessions.firstOrNull { it.id == id }
+            ?: state.recentSessions.firstOrNull { it.id == id }
+            ?: return
+        openSession(session)
+    }
+
+    fun openSession(session: DiagnosticSession) {
         cancelInputOperation()
         _uiState.update {
             it.copy(
                 input = session.analysis.input.text,
                 selectedSession = session,
+                surfaceRevision = it.surfaceRevision + 1,
                 inputError = null,
                 operationError = null,
                 isAnalyzing = false,

@@ -77,6 +77,19 @@ class DiagnosticSurfaceControllerTest {
     }
 
     @Test
+    fun anOlderClearCannotRemoveANewerSurfaceRequest() = runTest {
+        val processor = FakeProcessor()
+        val controller = DiagnosticSurfaceController(backgroundScope, StandardTestDispatcher(testScheduler), { processor })
+        controller.show(diagnosticSession(), diagnosticCopy(), requestId = 2L)
+
+        controller.clear(requestId = 1L)
+
+        assertEquals("session-1", controller.state.value.sessionId)
+        assertTrue(controller.state.value.surface == null || controller.state.value.surface?.id == processor.created().surfaceId)
+        assertTrue(processor.messages.none { it is A2uiDeleteSurfaceMessage })
+    }
+
+    @Test
     fun registeredActionsChangeTheComponentTreeWithoutResettingBindings() = runTest {
         val processor = FakeProcessor()
         val controller = DiagnosticSurfaceController(backgroundScope, StandardTestDispatcher(testScheduler), { processor })

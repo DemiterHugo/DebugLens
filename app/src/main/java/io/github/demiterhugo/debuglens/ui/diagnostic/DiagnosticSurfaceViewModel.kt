@@ -15,7 +15,8 @@ internal class DiagnosticSurfaceViewModel @Inject constructor(
     private val controller = DiagnosticSurfaceController(viewModelScope, dispatcher)
     val state = controller.state
 
-    fun show(session: DiagnosticSession, copy: DiagnosticSurfaceCopy) = controller.show(session, copy)
-    fun clear() = controller.clear()
+    fun show(session: DiagnosticSession, copy: DiagnosticSurfaceCopy, requestId: Long = 0L) =
+        controller.show(session, copy, requestId)
+    fun clear(requestId: Long = 0L) = controller.clear(requestId)
     fun retry() = controller.retry()
 }
