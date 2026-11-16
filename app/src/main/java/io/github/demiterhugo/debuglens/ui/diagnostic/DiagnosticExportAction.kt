@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -33,11 +34,11 @@ internal fun DiagnosticExportAction(
     onConfirm: (destination: DiagnosticReportDestination, includeTrace: Boolean, includeAdvice: Boolean) -> Unit,
 ) = key(sessionId) {
     var showOptions by rememberSaveable { mutableStateOf(false) }
-    TextButton(
+    FilledTonalButton(
         onClick = { showOptions = true },
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp).testTag("export_diagnostic"),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).testTag("export_diagnostic"),
     ) {
-        Text(stringResource(R.string.export_title))
+        Text(stringResource(R.string.export_action))
     }
     if (showOptions) {
         DiagnosticReportOptions(

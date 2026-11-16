@@ -13,7 +13,6 @@ internal fun diagnosticSurfaceCopy(
     text = text,
     showCauses = stringResource(R.string.a2ui_show_causes),
     hideCauses = stringResource(R.string.a2ui_hide_causes),
-    causesTitle = stringResource(R.string.analysis_cause_count, analysis.causes.size),
     causesOmitted = stringResource(R.string.a2ui_causes_omitted, DiagnosticSurfaceFactory.MAX_VISIBLE_CAUSES),
     showSource = stringResource(R.string.a2ui_show_source),
     hideSource = stringResource(R.string.a2ui_hide_source),

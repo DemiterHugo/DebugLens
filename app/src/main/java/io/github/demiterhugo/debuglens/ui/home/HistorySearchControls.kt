@@ -37,10 +37,11 @@ internal fun HistorySearchControls(
     onQueryChange: (String) -> Unit,
     onCategorySelected: (DiagnosticCategory?) -> Unit,
     onReset: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val focusManager = LocalFocusManager.current
     var categoriesExpanded by remember { mutableStateOf(false) }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = filter.query,
             onValueChange = onQueryChange,

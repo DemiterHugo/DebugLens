@@ -2,6 +2,7 @@ package io.github.demiterhugo.debuglens.ui.diagnostic
 
 import androidx.a2ui.model.protocol.A2uiComponentPayload
 import io.github.demiterhugo.debuglens.domain.model.DiagnosticAnalysis
+import io.github.demiterhugo.debuglens.domain.model.DiagnosticCategory
 
 internal const val DIAGNOSTIC_CATALOG_ID = "urn:debuglens:catalog:diagnostics:1"
 internal const val TOGGLE_CAUSES = "toggle_causes"
@@ -11,7 +12,6 @@ internal data class DiagnosticSurfaceCopy(
     val text: DiagnosticPresentationText,
     val showCauses: String,
     val hideCauses: String,
-    val causesTitle: String,
     val causesOmitted: String,
     val showSource: String,
     val hideSource: String,
@@ -48,29 +48,25 @@ internal class DiagnosticSurfaceFactory {
             )
         }
 
-        text("label", copy.text.label, "label")
         text("title", copy.text.title, "title")
-        text("limitations", copy.text.limitations, "label")
         analysis.rootCause?.let { cause ->
-            text("root_type", cause.type, "code")
+            text("root_type", cause.type, "label")
             cause.message?.let { text("root_message", it) }
         }
         analysis.location?.let { location ->
             text("location_title", copy.text.location, "section")
-            text("location_symbol", location.symbol, "code")
-            location.fileName?.let { file ->
-                text("location_source", location.lineNumber?.let { "$file:$it" } ?: file, "code")
+            val file = location.fileName
+            if (file != null) {
+                text("location_source", location.lineNumber?.let { "$file:$it" } ?: file, "evidence")
+            } else {
+                text("location_symbol", location.symbol, "code")
             }
         }
         if (analysis.rootCause == null) {
             analysis.anrEvidence?.let { text("anr_evidence", it, "code") }
         }
-        text("guidance_title", copy.text.guidanceTitle, "section")
-        text("guidance", copy.text.guidance)
-        copy.text.ai?.let {
-            text("ai_title", it.title, "section")
-            text("ai_advice", it.advice)
-            text("ai_note", it.note, "label")
+        if (analysis.category == DiagnosticCategory.UNKNOWN || analysis.category == DiagnosticCategory.UNRESPONSIVE) {
+            text("guidance", copy.text.guidance)
         }
         text("checklist_title", copy.text.checklistTitle, "section")
         copy.text.checklist.forEachIndexed { index, label ->
@@ -81,7 +77,6 @@ internal class DiagnosticSurfaceFactory {
             )
         }
         if (analysis.causes.size > 1) {
-            text("causes_count", copy.causesTitle, "label")
             button("toggle_causes", if (causesExpanded) copy.hideCauses else copy.showCauses, TOGGLE_CAUSES)
             if (causesExpanded) {
                 if (analysis.causes.size > MAX_VISIBLE_CAUSES) text("causes_omitted", copy.causesOmitted, "label")
@@ -93,8 +88,16 @@ internal class DiagnosticSurfaceFactory {
         }
         button("toggle_source", if (sourceExpanded) copy.hideSource else copy.showSource, TOGGLE_SOURCE)
         if (sourceExpanded) {
+            analysis.location?.takeIf { it.fileName != null }?.let {
+                text("location_symbol", it.symbol, "code")
+            }
             text("source", analysis.input.text, "code", MAX_SOURCE_LENGTH)
             if (analysis.input.text.length > MAX_SOURCE_LENGTH) text("source_omitted", copy.sourceOmitted, "label")
+        }
+        copy.text.ai?.let {
+            text("ai_title", it.title, "section")
+            text("ai_advice", it.advice)
+            text("ai_note", it.note, "label")
         }
         components += A2uiComponentPayload("root", "Column", mapOf("children" to children.toList()))
         return DiagnosticSurfaceDocument(

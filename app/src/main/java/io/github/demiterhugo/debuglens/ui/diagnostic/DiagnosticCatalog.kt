@@ -7,10 +7,12 @@ import androidx.a2ui.compose.runtime.A2uiProperty
 import androidx.a2ui.compose.runtime.observeA2uiComponentState
 import androidx.a2ui.compose.ui.A2uiCatalog
 import androidx.a2ui.compose.ui.A2uiComponent
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Checkbox
@@ -26,6 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.demiterhugo.debuglens.R
@@ -40,7 +43,7 @@ internal val DiagnosticCatalog: A2uiCatalog = A2uiCatalog(
 private object DiagnosticText : A2uiComponent {
     private val text = A2uiProperty.dynamicString("text", required = true)
     private val variant = A2uiProperty.stringEnum(
-        "variant", enumValues = listOf("title", "section", "body", "code", "label"),
+        "variant", enumValues = listOf("title", "section", "body", "code", "label", "evidence"),
     )
     override val name = "Text"
     override val description = "Plain diagnostic text with a registered typography style."
@@ -54,17 +57,33 @@ private object DiagnosticText : A2uiComponent {
         val value = properties.bind(text) ?: return
         val style = properties[variant] ?: "body"
         val typography = when (style) {
-            "title" -> MaterialTheme.typography.titleLarge
+            "title" -> MaterialTheme.typography.headlineMedium
             "section" -> MaterialTheme.typography.titleSmall
             "code" -> MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace)
+            "evidence" -> MaterialTheme.typography.bodyMedium.copy(
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold,
+            )
             "label" -> MaterialTheme.typography.labelMedium
             else -> MaterialTheme.typography.bodyMedium
+        }
+        val textModifier = when (style) {
+            "title" -> modifier.then(LocalDiagnosticHeadingModifier.current)
+            "evidence" -> modifier.fillMaxWidth()
+                .background(MaterialTheme.colorScheme.tertiaryContainer, MaterialTheme.shapes.small)
+                .padding(horizontal = 12.dp, vertical = 9.dp)
+            else -> modifier
         }
         SelectionContainer {
             Text(
                 text = value,
                 style = typography,
-                modifier = if (style == "title") modifier.then(LocalDiagnosticHeadingModifier.current) else modifier,
+                modifier = textModifier,
+                color = when (style) {
+                    "label" -> MaterialTheme.colorScheme.onSurfaceVariant
+                    "evidence" -> MaterialTheme.colorScheme.onTertiaryContainer
+                    else -> MaterialTheme.colorScheme.onSurface
+                },
                 maxLines = if (style == "code") 16 else 12,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -87,7 +106,7 @@ private object DiagnosticColumn : A2uiComponent {
     @Composable
     override fun A2uiComponentScope.Content(properties: A2uiComponentProperties, modifier: Modifier) {
         val references = properties.bindChildReferences(children) ?: return
-        Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             references.forEach { reference ->
                 key(reference.id, reference.baseDataPath) {
                     when (val state = observeA2uiComponentState(reference)) {

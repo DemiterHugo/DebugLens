@@ -4,22 +4,32 @@ import android.content.ActivityNotFoundException
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -29,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -41,9 +52,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -212,144 +225,170 @@ internal fun HomeScreen(
     val focusManager = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
     val resultRequester = remember { BringIntoViewRequester() }
+    val historyRequester = remember { BringIntoViewRequester() }
     val scope = rememberCoroutineScope()
     val example = stringResource(R.string.example_stack_trace)
     var sessionPendingDeletion by rememberSaveable { mutableStateOf<String?>(null) }
+    var showInputOptions by remember { mutableStateOf(false) }
     val canChangeHistory = !uiState.isInputBusy && !uiState.isHistoryMutating
-    LaunchedEffect(uiState.selectedSession?.id) {
+    val sessionId = uiState.selectedSession?.id
+    val resultIsReady = surfaceState.sessionId == sessionId && (surfaceState.surface != null || surfaceState.hasError)
+    LaunchedEffect(sessionId, resultIsReady) {
         if (uiState.selectedSession != null) {
             withFrameNanos { }
             resultRequester.bringIntoView()
         }
     }
-    Scaffold(modifier = modifier.fillMaxSize(), snackbarHost = snackbarHost) { contentPadding ->
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = snackbarHost,
+    ) { contentPadding ->
         Column(
             modifier = Modifier
                 .padding(contentPadding)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.app_name),
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.weight(1f),
-                )
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp, Alignment.End),
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(
+                        modifier = Modifier.size(34.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            painterResource(R.drawable.ic_trace),
+                            contentDescription = null,
+                            modifier = Modifier.size(21.dp),
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                    Text(stringResource(R.string.app_name), style = MaterialTheme.typography.titleLarge)
+                }
+                TextButton(onClick = {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                    scope.launch { historyRequester.bringIntoView() }
+                }) { Text(stringResource(R.string.history_title)) }
                 TextButton(onClick = onShowAbout) { Text(stringResource(R.string.home_info_button)) }
             }
-            Text(
-                stringResource(R.string.home_subtitle),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    stringResource(R.string.home_input_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    onClick = { onInputChange(example) },
-                    modifier = Modifier.testTag("load_example"),
-                ) { Text(stringResource(R.string.action_load_example)) }
-            }
-            Column {
-                val canReadLogcat = !uiState.isInputBusy && !uiState.isHistoryMutating
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = {
-                            keyboard?.hide()
-                            focusManager.clearFocus()
-                            onCaptureLogcat()
-                        },
-                        enabled = canReadLogcat,
-                        modifier = Modifier.testTag("capture_logcat"),
-                    ) {
-                        val label = if (uiState.logcatReadInProgress == LogcatSource.DEVICE) {
-                            R.string.action_capturing_logcat
-                        } else {
-                            R.string.action_capture_logcat
-                        }
-                        Text(stringResource(label))
-                    }
-                    TextButton(
-                        onClick = {
-                            keyboard?.hide()
-                            focusManager.clearFocus()
-                            onImportLogcat()
-                        },
-                        enabled = canReadLogcat,
-                        modifier = Modifier.testTag("import_logcat"),
-                    ) {
-                        val label = if (uiState.logcatReadInProgress == LogcatSource.DOCUMENT) {
-                            R.string.action_importing_logcat
-                        } else {
-                            R.string.action_import_logcat
-                        }
-                        Text(stringResource(label))
-                    }
-                }
-                Text(
-                    stringResource(R.string.logcat_capture_scope),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (uiState.logcatReadInProgress == LogcatSource.DEVICE) {
-                    TextButton(onClick = onCancelLogcatCapture) {
-                        Text(stringResource(R.string.action_cancel_logcat_capture))
-                    }
-                }
-            }
-            uiState.logcatReadError?.let { error ->
-                Text(
-                    stringResource(error.messageResource()),
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            OutlinedTextField(
-                value = uiState.input,
-                onValueChange = onInputChange,
-                label = { Text(stringResource(R.string.home_input_label)) },
-                placeholder = { Text(stringResource(R.string.home_input_placeholder)) },
-                modifier = Modifier.fillMaxWidth().testTag("diagnostic_input"),
-                minLines = 4,
-                maxLines = 8,
-                isError = uiState.inputError != null,
-                supportingText = {
-                    Text(
-                        when (uiState.inputError) {
-                            DiagnosticInputError.EMPTY -> stringResource(R.string.input_error_empty)
-                            DiagnosticInputError.TOO_LONG -> stringResource(
-                                R.string.input_error_too_long, DiagnosticInput.MAX_LENGTH,
-                            )
-                            null -> stringResource(
-                                R.string.input_character_count, uiState.input.length, DiagnosticInput.MAX_LENGTH,
-                            )
-                        },
-                    )
+            AnalysisHero(
+                importing = uiState.logcatReadInProgress == LogcatSource.DOCUMENT,
+                enabled = canChangeHistory,
+                onImport = {
+                    keyboard?.hide()
+                    focusManager.clearFocus()
+                    onImportLogcat()
                 },
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = {
-                        keyboard?.hide()
-                        focusManager.clearFocus()
-                        onAnalyze()
-                    },
-                    enabled = !uiState.isInputBusy && !uiState.isHistoryMutating,
-                    modifier = Modifier.testTag("analyze_input"),
+            OutlinedCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(stringResource(if (uiState.isAnalyzing) R.string.action_analyzing else R.string.action_analyze))
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(
+                            onClick = { onInputChange(example) },
+                            enabled = canChangeHistory,
+                            modifier = Modifier.testTag("load_example"),
+                        ) { Text(stringResource(R.string.action_load_example)) }
+                        Box {
+                            TextButton(onClick = { showInputOptions = true }, enabled = canChangeHistory) {
+                                Text(stringResource(R.string.home_more_options))
+                            }
+                            DropdownMenu(
+                                expanded = showInputOptions,
+                                onDismissRequest = { showInputOptions = false },
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.action_capture_logcat)) },
+                                    onClick = {
+                                        showInputOptions = false
+                                        keyboard?.hide()
+                                        focusManager.clearFocus()
+                                        onCaptureLogcat()
+                                    },
+                                    enabled = canChangeHistory,
+                                    modifier = Modifier.testTag("capture_logcat"),
+                                )
+                            }
+                        }
+                    }
+                    if (uiState.logcatReadInProgress == LogcatSource.DEVICE) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                stringResource(R.string.action_capturing_logcat),
+                                modifier = Modifier.align(Alignment.CenterVertically),
+                            )
+                            TextButton(onClick = onCancelLogcatCapture) {
+                                Text(stringResource(R.string.action_cancel_logcat_capture))
+                            }
+                        }
+                    }
+                    uiState.logcatReadError?.let { error ->
+                        Text(
+                            stringResource(error.messageResource()),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                    val inputErrorMessage = when (uiState.inputError) {
+                        DiagnosticInputError.EMPTY -> stringResource(R.string.input_error_empty)
+                        DiagnosticInputError.TOO_LONG -> stringResource(R.string.input_error_too_long, DiagnosticInput.MAX_LENGTH)
+                        null -> null
+                    }
+                    OutlinedTextField(
+                        value = uiState.input,
+                        onValueChange = onInputChange,
+                        label = { Text(stringResource(R.string.home_input_label)) },
+                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
+                        shape = MaterialTheme.shapes.medium,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                            errorContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        ),
+                        modifier = Modifier.fillMaxWidth().testTag("diagnostic_input"),
+                        minLines = 3,
+                        maxLines = 5,
+                        isError = uiState.inputError != null,
+                        supportingText = if (inputErrorMessage == null) null else { { Text(inputErrorMessage) } },
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                keyboard?.hide()
+                                focusManager.clearFocus()
+                                onAnalyze()
+                            },
+                            enabled = !uiState.isInputBusy && !uiState.isHistoryMutating,
+                            modifier = Modifier.testTag("analyze_input"),
+                        ) {
+                            Text(stringResource(if (uiState.isAnalyzing) R.string.action_analyzing else R.string.action_analyze))
+                        }
+                        if (uiState.input.isNotEmpty()) {
+                            TextButton(
+                                onClick = { onInputChange("") },
+                                modifier = Modifier.testTag("clear_input"),
+                            ) { Text(stringResource(R.string.action_clear_input)) }
+                        }
+                    }
+                    if (uiState.isInputBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
-                TextButton(
-                    onClick = { onInputChange("") },
-                    enabled = uiState.input.isNotEmpty(),
-                    modifier = Modifier.testTag("clear_input"),
-                ) { Text(stringResource(R.string.action_clear_input)) }
             }
-            if (uiState.isInputBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             uiState.operationError?.let { error ->
                 Text(
                     stringResource(
@@ -364,20 +403,28 @@ internal fun HomeScreen(
                 )
             }
             uiState.selectedSession?.let {
-                aiControls(it)
                 DiagnosticResultCard(
                     sessionId = it.id,
                     surfaceState = surfaceState,
                     onRetry = onRetrySurface,
-                    headerModifier = Modifier.bringIntoViewRequester(resultRequester).testTag("analysis_heading"),
+                    modifier = Modifier.bringIntoViewRequester(resultRequester),
+                    headerModifier = Modifier.testTag("analysis_heading"),
                     actions = exportAction,
                 )
+                key(it.id) {
+                    var showAi by rememberSaveable { mutableStateOf(false) }
+                    TextButton(onClick = { showAi = !showAi }) {
+                        Text(stringResource(if (showAi) R.string.ai_hide_options else R.string.ai_title))
+                    }
+                    if (showAi) aiControls(it)
+                }
             }
-            Text(stringResource(R.string.history_title), style = MaterialTheme.typography.titleLarge)
+            val showHistoryControls = !uiState.isHistoryLoading && !uiState.historyLoadError &&
+                uiState.recentSessions.isNotEmpty()
             Text(
-                stringResource(R.string.history_retention),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                stringResource(R.string.history_title),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = if (showHistoryControls) Modifier else Modifier.bringIntoViewRequester(historyRequester),
             )
             if (uiState.isHistoryLoading) {
                 Text(stringResource(R.string.history_loading), modifier = Modifier.testTag("history_loading"))
@@ -387,7 +434,15 @@ internal fun HomeScreen(
                     Text(stringResource(R.string.action_retry_history))
                 }
             } else if (uiState.recentSessions.isEmpty()) {
-                Text(stringResource(R.string.history_empty), modifier = Modifier.testTag("history_empty"))
+                Text(
+                    stringResource(R.string.history_empty),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surfaceContainer, MaterialTheme.shapes.medium)
+                        .padding(16.dp)
+                        .testTag("history_empty"),
+                )
             } else {
                 HistorySearchControls(
                     filter = uiState.historyFilter,
@@ -395,6 +450,7 @@ internal fun HomeScreen(
                     onQueryChange = onHistoryQueryChange,
                     onCategorySelected = onHistoryCategorySelected,
                     onReset = onResetHistoryFilter,
+                    modifier = Modifier.bringIntoViewRequester(historyRequester),
                 )
                 if (!uiState.historyFilter.isActive) {
                     TextButton(
@@ -409,8 +465,9 @@ internal fun HomeScreen(
                     Text(stringResource(R.string.history_no_matches), modifier = Modifier.testTag("history_no_matches"))
                 }
                 uiState.matchingSessions.forEach { session ->
-                    Card(
+                    OutlinedCard(
                         modifier = Modifier.fillMaxWidth().testTag("history_entry"),
+                        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -426,31 +483,38 @@ internal fun HomeScreen(
                                 maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                                 style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            TextButton(
-                                onClick = {
-                                    keyboard?.hide()
-                                    focusManager.clearFocus()
-                                    val alreadyDisplayed = uiState.selectedSession?.id == session.id
-                                    onOpenSession(session)
-                                    if (alreadyDisplayed) scope.launch { resultRequester.bringIntoView() }
-                                },
-                                modifier = Modifier.align(Alignment.End).testTag("history_open_entry"),
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                             ) {
-                                Text(stringResource(R.string.history_open_entry))
-                            }
-                            TextButton(
-                                onClick = {
-                                    keyboard?.hide()
-                                    focusManager.clearFocus()
-                                    sessionPendingDeletion = session.id
-                                },
-                                enabled = canChangeHistory,
-                                modifier = Modifier.align(Alignment.End).testTag("history_delete_entry"),
-                            ) {
-                                val label = if (uiState.deletingSessionId == session.id) R.string.history_deleting_entry
-                                else R.string.history_delete_entry
-                                Text(stringResource(label))
+                                TextButton(
+                                    onClick = {
+                                        keyboard?.hide()
+                                        focusManager.clearFocus()
+                                        val alreadyDisplayed = uiState.selectedSession?.id == session.id
+                                        onOpenSession(session)
+                                        if (alreadyDisplayed) scope.launch { resultRequester.bringIntoView() }
+                                    },
+                                    modifier = Modifier.testTag("history_open_entry"),
+                                ) {
+                                    Text(stringResource(R.string.history_open_entry))
+                                }
+                                TextButton(
+                                    onClick = {
+                                        keyboard?.hide()
+                                        focusManager.clearFocus()
+                                        sessionPendingDeletion = session.id
+                                    },
+                                    enabled = canChangeHistory,
+                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                                    modifier = Modifier.testTag("history_delete_entry"),
+                                ) {
+                                    val label = if (uiState.deletingSessionId == session.id) R.string.history_deleting_entry
+                                    else R.string.history_delete_entry
+                                    Text(stringResource(label))
+                                }
                             }
                         }
                     }
@@ -522,7 +586,7 @@ private fun LogcatReadError.messageResource(): Int = when (reason) {
 @Preview(showBackground = true)
 @Composable
 private fun HomeScreenPreview() {
-    DebugLensTheme(dynamicColor = false) {
+    DebugLensTheme {
         HomeScreen(
             uiState = HomeUiState(),
             onInputChange = {},

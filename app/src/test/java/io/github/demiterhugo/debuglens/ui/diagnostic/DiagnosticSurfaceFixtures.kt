@@ -19,7 +19,7 @@ internal fun diagnosticText() = DiagnosticPresentationText(
 
 internal fun diagnosticCopy() = DiagnosticSurfaceCopy(
     text = diagnosticText(),
-    showCauses = "Show causes", hideCauses = "Hide causes", causesTitle = "Cause chain",
+    showCauses = "Show causes", hideCauses = "Hide causes",
     causesOmitted = "Only the deepest causes are shown", showSource = "Show source", hideSource = "Hide source",
     sourceOmitted = "Source preview truncated",
 )

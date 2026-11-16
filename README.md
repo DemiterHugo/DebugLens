@@ -40,7 +40,7 @@ están en [domain/README.md](domain/README.md) y [data/README.md](data/README.md
 4. Reabrir o borrar análisis recientes desde el historial guardado. Al abrir un
    resultado, la pantalla desplaza su cabecera al área visible.
 
-**Leer Logcat** reúne la captura y el análisis en una sola acción para fallos
+**Más opciones → Leer fallos de DebugLens** captura y analiza los fallos
 de DebugLens registrados en el dispositivo.
 
 La entrada normaliza CRLF y CR a LF y elimina el espacio exterior. Se rechazan
@@ -72,10 +72,10 @@ resultado que ya estaba abierto. Las bases de datos, incluidos los archivos
 auxiliares de SQLite, se excluyen de las copias de seguridad y las transferencias
 entre dispositivos mediante las reglas de Android.
 
-En **Análisis recientes**, busca mensajes, tipos de excepción o archivos en el
+En **Historial**, busca mensajes, tipos de excepción o archivos en el
 fragmento completo de cada diagnóstico guardado. La búsqueda admite varios
 términos e ignora mayúsculas y tildes. Puedes combinarla con una categoría.
-En cada entrada, **Eliminar del historial** pide confirmación y retira solo
+En cada entrada, **Eliminar** pide confirmación y retira solo
 ese diagnóstico. Si el resultado sigue abierto, puedes consultarlo hasta salir
 de él.
 **Restablecer filtros** recupera la lista completa, desde la que puedes borrar
@@ -88,7 +88,7 @@ Las orientaciones de la aplicación se apoyan en la documentación de Android so
 
 ## Leer Logcat desde DebugLens
 
-Pulsa **Leer Logcat** para buscar el último fallo Java de DebugLens que siga
+Pulsa **Más opciones → Leer fallos de DebugLens** para buscar el último fallo Java que siga
 disponible en el búfer `crash`. La app captura hasta 500 entradas recientes y
 analiza el incidente en la misma acción. Muestra el diagnóstico en A2UI y lo
 guarda en el historial. Si no encuentra un fallo, conserva el borrador y el
@@ -171,8 +171,8 @@ El procesador se cancela y libera sus superficies al finalizar el ViewModel.
    (347 MB) con LiteRT-LM 0.16.1. Para una prueba más ligera está
    [SmolLM2 135M Instruct](https://huggingface.co/litert-community/SmolLM2-135M-Instruct/tree/8111e0a)
    (143 MB), que puede responder en inglés y con menos detalle.
-2. Importa un volcado de Logcat y pulsa **Analizar**. En el resultado, pulsa
-   **Cargar modelo de IA** y elige el archivo. DebugLens admite un modelo a la
+2. Importa un volcado de Logcat y pulsa **Analizar**. Debajo del resultado, abre
+   **IA local**, pulsa **Cargar modelo de IA** y elige el archivo. DebugLens admite un modelo a la
    vez, de hasta 1 GiB, y guarda su copia en almacenamiento privado excluido de
    las copias de seguridad. Antes de sustituirlo, DebugLens comprueba que
    LiteRT-LM puede abrir el nuevo modelo. Si falla, conserva el modelo anterior.
@@ -193,8 +193,8 @@ de diagnóstico y la inferencia permanecen en el dispositivo.
 
 ## Exportar un diagnóstico
 
-Abre un diagnóstico nuevo o recupera uno del historial y pulsa **Exportar
-diagnóstico**. El informe de texto UTF-8 incluye la clasificación, la evidencia
+Abre un diagnóstico nuevo o recupera uno del historial y pulsa **Compartir o
+guardar**. El informe de texto UTF-8 incluye la clasificación, la evidencia
 del fallo, la ubicación disponible y las comprobaciones recomendadas.
 
 La traza completa y la sugerencia de IA se incluyen solo si marcas sus

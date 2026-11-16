@@ -1,7 +1,7 @@
 package io.github.demiterhugo.debuglens.ui.diagnostic
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,10 +29,9 @@ internal fun DiagnosticAiControls(
             Text(stringResource(R.string.ai_unsupported), style = MaterialTheme.typography.bodySmall)
             return@Column
         }
-        Text(
-            stringResource(if (model == AiModelStatus.READY) R.string.ai_ready else R.string.ai_model_required),
-            style = MaterialTheme.typography.bodySmall,
-        )
+        if (model != AiModelStatus.READY) {
+            Text(stringResource(R.string.ai_model_required), style = MaterialTheme.typography.bodySmall)
+        }
         if (state.generating) {
             Text(stringResource(R.string.ai_generating))
             TextButton(onClick = onCancel) { Text(stringResource(R.string.ai_cancel)) }
@@ -42,7 +41,7 @@ internal fun DiagnosticAiControls(
             }
         }
         if (state.changingModel) Text(stringResource(R.string.ai_changing_model))
-        Row {
+        FlowRow {
             TextButton(
                 onClick = onInstall,
                 enabled = !state.changingModel && !state.generating,
