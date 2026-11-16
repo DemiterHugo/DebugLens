@@ -330,3 +330,7 @@ y pull request la compilación debug/release, las pruebas unitarias de los tres
 módulos y `lintDebug`. También conserva los APK y los informes como artefactos.
 Las pruebas instrumentadas siguen necesitando un dispositivo o un job explícito
 con emulador Android.
+
+## Licencia
+
+DebugLens se distribuye bajo la [licencia MIT](LICENSE).
