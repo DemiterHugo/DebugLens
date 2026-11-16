@@ -367,12 +367,16 @@ class HomeViewModelTest {
         model.updateInput("java.lang.NullPointerException")
         model.analyze()
         advanceUntilIdle()
-        val firstSessionId = model.uiState.value.selectedSession?.id
+        val firstSession = model.uiState.value.selectedSession
+        val firstRevision = model.uiState.value.surfaceRevision
 
         model.analyze()
+        assertTrue(model.uiState.value.isAnalyzing)
+        assertEquals(firstSession, model.uiState.value.selectedSession)
+        assertEquals(firstRevision, model.uiState.value.surfaceRevision)
         advanceUntilIdle()
 
-        assertNotEquals(firstSessionId, model.uiState.value.selectedSession?.id)
+        assertNotEquals(firstSession?.id, model.uiState.value.selectedSession?.id)
         assertEquals(2, model.uiState.value.recentSessions.size)
     }
 

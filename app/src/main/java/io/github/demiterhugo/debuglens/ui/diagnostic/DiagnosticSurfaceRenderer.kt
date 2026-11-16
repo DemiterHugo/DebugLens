@@ -8,7 +8,6 @@ import androidx.a2ui.compose.ui.asReadinessEvaluator
 import androidx.a2ui.model.processor.A2uiSurfaceModel
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,31 +23,23 @@ import io.github.demiterhugo.debuglens.R
 internal fun DiagnosticSurfaceRenderer(
     surface: A2uiSurfaceModel,
     onRetry: () -> Unit,
-    modifier: Modifier = Modifier,
-    headerModifier: Modifier = Modifier,
+    headerModifier: Modifier,
+    frame: @Composable (content: @Composable () -> Unit) -> Unit,
 ) {
     val evaluator = remember { DiagnosticCatalog.asReadinessEvaluator() }
-    Box(modifier) {
-        CompositionLocalProvider(
-            LocalA2uiReadinessEvaluator provides evaluator,
-            LocalDiagnosticHeadingModifier provides headerModifier,
-        ) {
-            when (val state = observeA2uiComponentState(surface)) {
-                A2uiComponentState.Loading -> DiagnosticSurfaceLoading(headerModifier)
-                is A2uiComponentState.Error -> DiagnosticSurfaceError(onRetry, headerModifier)
-                is A2uiComponentState.Success -> Box(Modifier.testTag("a2ui_surface_ready")) {
+    CompositionLocalProvider(
+        LocalA2uiReadinessEvaluator provides evaluator,
+        LocalDiagnosticHeadingModifier provides headerModifier,
+    ) {
+        when (val state = observeA2uiComponentState(surface)) {
+            A2uiComponentState.Loading -> Unit
+            is A2uiComponentState.Error -> frame { DiagnosticSurfaceError(onRetry, headerModifier) }
+            is A2uiComponentState.Success -> frame {
+                Box(Modifier.testTag("a2ui_surface_ready")) {
                     A2uiComponent(state.component)
                 }
             }
         }
-    }
-}
-
-@Composable
-internal fun DiagnosticSurfaceLoading(modifier: Modifier = Modifier) {
-    Column(modifier.testTag("a2ui_surface_loading")) {
-        Text(stringResource(R.string.a2ui_loading))
-        LinearProgressIndicator()
     }
 }
 

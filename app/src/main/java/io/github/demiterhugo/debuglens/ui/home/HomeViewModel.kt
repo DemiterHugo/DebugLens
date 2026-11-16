@@ -193,8 +193,6 @@ class HomeViewModel @Inject constructor(
             it.copy(
                 isAnalyzing = true,
                 inputError = null,
-                selectedSession = null,
-                surfaceRevision = it.surfaceRevision + 1,
                 operationError = null,
                 logcatReadError = null,
             )
@@ -222,7 +220,13 @@ class HomeViewModel @Inject constructor(
                         DiagnosticSession("unsaved-${UUID.randomUUID()}", result.analysis)
                     }
                     currentCoroutineContext().ensureActive()
-                    _uiState.update { it.copy(selectedSession = session) }
+                    _uiState.update {
+                        it.copy(
+                            selectedSession = session,
+                            isAnalyzing = false,
+                            surfaceRevision = it.surfaceRevision + 1,
+                        )
+                    }
                 }
             }
         } catch (cancelled: CancellationException) {

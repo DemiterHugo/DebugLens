@@ -40,6 +40,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -80,6 +81,7 @@ import io.github.demiterhugo.debuglens.ui.diagnostic.diagnosticText
 import io.github.demiterhugo.debuglens.ui.diagnostic.formatDiagnosticReport
 import io.github.demiterhugo.debuglens.ui.diagnostic.titleResource
 import io.github.demiterhugo.debuglens.ui.theme.DebugLensTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -231,12 +233,13 @@ internal fun HomeScreen(
     var sessionPendingDeletion by rememberSaveable { mutableStateOf<String?>(null) }
     var showInputOptions by remember { mutableStateOf(false) }
     val canChangeHistory = !uiState.isInputBusy && !uiState.isHistoryMutating
-    val sessionId = uiState.selectedSession?.id
-    val resultIsReady = surfaceState.sessionId == sessionId && (surfaceState.surface != null || surfaceState.hasError)
-    LaunchedEffect(sessionId, resultIsReady) {
-        if (uiState.selectedSession != null) {
-            withFrameNanos { }
-            resultRequester.bringIntoView()
+    var lastRevealedRevision by rememberSaveable(uiState.selectedSession != null) { mutableLongStateOf(Long.MIN_VALUE) }
+    var showAnalyzing by remember { mutableStateOf(false) }
+    LaunchedEffect(uiState.isAnalyzing) {
+        showAnalyzing = false
+        if (uiState.isAnalyzing) {
+            delay(180)
+            showAnalyzing = true
         }
     }
     Scaffold(
@@ -377,7 +380,12 @@ internal fun HomeScreen(
                             enabled = !uiState.isInputBusy && !uiState.isHistoryMutating,
                             modifier = Modifier.testTag("analyze_input"),
                         ) {
-                            Text(stringResource(if (uiState.isAnalyzing) R.string.action_analyzing else R.string.action_analyze))
+                            val label = if (uiState.isAnalyzing && showAnalyzing) {
+                                R.string.action_analyzing
+                            } else {
+                                R.string.action_analyze
+                            }
+                            Text(stringResource(label))
                         }
                         if (uiState.input.isNotEmpty()) {
                             TextButton(
@@ -386,7 +394,7 @@ internal fun HomeScreen(
                             ) { Text(stringResource(R.string.action_clear_input)) }
                         }
                     }
-                    if (uiState.isInputBusy) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    if (uiState.logcatReadInProgress != null) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
             }
             uiState.operationError?.let { error ->
@@ -403,21 +411,32 @@ internal fun HomeScreen(
                 )
             }
             uiState.selectedSession?.let {
+                val revision = uiState.surfaceRevision
                 DiagnosticResultCard(
                     sessionId = it.id,
                     surfaceState = surfaceState,
                     onRetry = onRetrySurface,
                     modifier = Modifier.bringIntoViewRequester(resultRequester),
                     headerModifier = Modifier.testTag("analysis_heading"),
+                    presentationRevision = revision,
+                    onPresented = {
+                        if (lastRevealedRevision != revision) {
+                            withFrameNanos { }
+                            resultRequester.bringIntoView()
+                            lastRevealedRevision = revision
+                        }
+                    },
                     actions = exportAction,
+                    afterCard = {
+                        key(it.id) {
+                            var showAi by rememberSaveable { mutableStateOf(false) }
+                            TextButton(onClick = { showAi = !showAi }) {
+                                Text(stringResource(if (showAi) R.string.ai_hide_options else R.string.ai_title))
+                            }
+                            if (showAi) aiControls(it)
+                        }
+                    },
                 )
-                key(it.id) {
-                    var showAi by rememberSaveable { mutableStateOf(false) }
-                    TextButton(onClick = { showAi = !showAi }) {
-                        Text(stringResource(if (showAi) R.string.ai_hide_options else R.string.ai_title))
-                    }
-                    if (showAi) aiControls(it)
-                }
             }
             val showHistoryControls = !uiState.isHistoryLoading && !uiState.historyLoadError &&
                 uiState.recentSessions.isNotEmpty()
@@ -493,9 +512,7 @@ internal fun HomeScreen(
                                     onClick = {
                                         keyboard?.hide()
                                         focusManager.clearFocus()
-                                        val alreadyDisplayed = uiState.selectedSession?.id == session.id
                                         onOpenSession(session)
-                                        if (alreadyDisplayed) scope.launch { resultRequester.bringIntoView() }
                                     },
                                     modifier = Modifier.testTag("history_open_entry"),
                                 ) {

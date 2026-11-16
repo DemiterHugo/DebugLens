@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,10 +28,12 @@ import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceController
 import io.github.demiterhugo.debuglens.ui.diagnostic.diagnosticSurfaceCopy
 import io.github.demiterhugo.debuglens.ui.home.DiagnosticResultCard
 import io.github.demiterhugo.debuglens.ui.theme.DebugLensTheme
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,6 +42,60 @@ import org.junit.runner.RunWith
 class DiagnosticA2uiRecoveryTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun mountsAndRevealsTheCardOnlyWhenTheDiagnosticIsReady() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+        val sdk = A2uiMessageProcessor(listOf(DiagnosticCatalog))
+        val reveals = AtomicInteger()
+        val processor = object : A2uiMessageProcessor by sdk {
+            var pending: A2uiUpdateComponentsMessage? = null
+            var holdComponents = true
+            override fun processMessage(message: A2uiServerToClientMessage) {
+                if (message is A2uiUpdateComponentsMessage && holdComponents) {
+                    pending = message
+                } else {
+                    sdk.processMessage(message)
+                }
+            }
+        }
+        val controller = DiagnosticSurfaceController(scope, Dispatchers.Default, { processor })
+        val analysis = (AnalyzeDiagnosticUseCase()("java.lang.NullPointerException: example") as DiagnosticResult.Success).analysis
+        val session = DiagnosticSession("presentation-test", analysis)
+
+        try {
+            composeRule.setContent {
+                DebugLensTheme {
+                    val state by controller.state.collectAsStateWithLifecycle()
+                    val copy = diagnosticSurfaceCopy(analysis)
+                    LaunchedEffect(copy) { controller.show(session, copy) }
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        DiagnosticResultCard(
+                            sessionId = session.id,
+                            surfaceState = state,
+                            onRetry = controller::retry,
+                            onPresented = { reveals.incrementAndGet() },
+                        )
+                    }
+                }
+            }
+            composeRule.waitUntil(10_000) { controller.state.value.surface != null }
+            composeRule.onNodeWithTag("analysis_result").assertDoesNotExist()
+            assertEquals(0, reveals.get())
+
+            composeRule.runOnIdle {
+                processor.holdComponents = false
+                processor.processMessage(checkNotNull(processor.pending))
+            }
+            composeRule.waitUntil(10_000) {
+                composeRule.onAllNodesWithTag("a2ui_surface_ready").fetchSemanticsNodes().isNotEmpty()
+            }
+            composeRule.onNodeWithTag("analysis_result").assertIsDisplayed()
+            assertEquals(1, reveals.get())
+        } finally {
+            scope.cancel()
+        }
+    }
 
     @Test
     fun rejectsAnUnknownComponentAndRecoversThroughTheRealSdk() {

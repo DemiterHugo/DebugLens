@@ -10,11 +10,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceError
-import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceLoading
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceRenderer
 import io.github.demiterhugo.debuglens.ui.diagnostic.DiagnosticSurfaceState
 
@@ -25,25 +25,32 @@ internal fun DiagnosticResultCard(
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
     headerModifier: Modifier = Modifier,
+    presentationRevision: Long = 0L,
+    onPresented: suspend () -> Unit = {},
     actions: @Composable () -> Unit = {},
+    afterCard: @Composable () -> Unit = {},
 ) {
-    OutlinedCard(
-        modifier = modifier.fillMaxWidth().testTag("analysis_result"),
-        shape = MaterialTheme.shapes.large,
-        colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
-    ) {
-        Box(Modifier.fillMaxWidth().height(4.dp).background(MaterialTheme.colorScheme.primary))
-        Box(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
-            when {
-                surfaceState.sessionId != sessionId -> DiagnosticSurfaceLoading(headerModifier)
-                surfaceState.hasError -> DiagnosticSurfaceError(onRetry, headerModifier)
-                surfaceState.surface != null -> DiagnosticSurfaceRenderer(
-                    surfaceState.surface, onRetry, headerModifier = headerModifier,
-                )
-                else -> DiagnosticSurfaceLoading(headerModifier)
+    if (surfaceState.sessionId != sessionId) return
+
+    val frame: @Composable (content: @Composable () -> Unit) -> Unit = { content ->
+        LaunchedEffect(sessionId, presentationRevision) { onPresented() }
+        OutlinedCard(
+            modifier = modifier.fillMaxWidth().testTag("analysis_result"),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        ) {
+            Box(Modifier.fillMaxWidth().height(4.dp).background(MaterialTheme.colorScheme.primary))
+            Box(Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                content()
             }
+            HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+            actions()
         }
-        HorizontalDivider(Modifier.padding(horizontal = 16.dp))
-        actions()
+        afterCard()
+    }
+    if (surfaceState.hasError) {
+        frame { DiagnosticSurfaceError(onRetry, headerModifier) }
+    } else {
+        surfaceState.surface?.let { DiagnosticSurfaceRenderer(it, onRetry, headerModifier, frame) }
     }
 }
