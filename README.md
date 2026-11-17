@@ -1,8 +1,12 @@
 # DebugLens
 
-DebugLens convierte una traza de Android que ya tienes en un diagnóstico
-interactivo que puedes revisar y compartir desde el móvil. El análisis de la
-traza se ejecuta en el dispositivo.
+DebugLens es una demo de **A2UI en Jetpack Compose**. Analiza en el dispositivo
+una traza de Android que ya tienes y la convierte en un diagnóstico interactivo
+que puedes revisar y compartir desde el móvil.
+
+[Descargar el APK firmado de DebugLens v1.0.1](https://github.com/DemiterHugo/DebugLens/releases/download/v1.0.1/DebugLens-v1.0.1.apk)
+
+<img src="docs/debuglens-diagnostico.png" width="320" alt="Diagnóstico A2UI de un fallo real de prueba. Muestra una IllegalStateException, MainActivity.java:23, comprobaciones y las acciones Ver traza y Compartir o guardar." />
 
 Identificador de la app: `io.github.demiterhugo.debuglens`.
 
