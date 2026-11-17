@@ -1,7 +1,35 @@
 # DebugLens
 
-Aplicación Android modular para explorar fragmentos de errores y trazas de excepciones.
-Package y application ID: `io.github.demiterhugo.debuglens`.
+DebugLens convierte una traza de Android que ya tienes en un diagnóstico
+interactivo que puedes revisar y compartir desde el móvil. El análisis de la
+traza se ejecuta en el dispositivo.
+
+Identificador de la app: `io.github.demiterhugo.debuglens`.
+
+## Caso de uso: revisar un fallo de una beta
+
+Una persona que prueba tu app te indica qué hizo antes de que se cerrara.
+Puedes obtener la traza Java desde un informe compartido por el equipo o
+desde una herramienta de diagnóstico configurada en la app que estás probando,
+como [Firebase Crashlytics](https://firebase.google.com/docs/crashlytics/android/get-started).
+[Internal Testing](https://support.google.com/googleplay/android-developer/answer/9845334)
+es el canal que distribuye esa versión a las personas que la prueban.
+
+Pega el fragmento a partir del nombre de la excepción (por ejemplo,
+`java.lang.NullPointerException`), con sus líneas `at …` y `Caused by`, y
+pulsa **Analizar**. Si tienes un volcado en formato `threadtime`, usa
+**Importar Logcat**. Desde el diagnóstico puedes revisar la excepción y la
+ubicación disponible, desplegar las causas y compartir un resumen.
+
+### Qué demuestra A2UI
+
+El analizador local identifica el patrón. A2UI representa ese resultado como
+una pantalla de Compose con componentes que define DebugLens. Una
+`NullPointerException` puede mostrar un archivo y una línea con la comprobación
+«Localiza qué valor es nulo». Un ANR con información limitada muestra el
+fragmento disponible y propone revisar el hilo bloqueado. Los botones para
+desplegar la traza y las casillas de revisión también forman parte de la
+interfaz A2UI.
 
 ## Módulos y dependencias
 
